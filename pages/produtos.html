@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Fornecedor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/style/dashboard.css">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="position-sticky">
+                    <div class="text-center py-3">
+                        <img src="https://www.allflags.com.br/wp-content/uploads/2017/09/logo_nxboats.png" class="img-fluid" alt="Logo">
+                        <h6 class="mt-5">Menu</h6>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a href="/pages/dashboard.html" class="nav-link"><i class="fas fa-tv me-2"></i>Painel</a></li>
+                        <li class="nav-item"><a href="/pages/pedidos.html" class="nav-link"><i class="fas fa-truck me-2"></i>Pedidos</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link active"><i class="fas fa-cube me-2"></i>Produtos</a></li>
+                        <li class="nav-item"><a href="/pages/finaceiro.html" class="nav-link"><i class="fas fa-sack-dollar me-2"></i>Financeiro</a></li>
+                        <li class="nav-item mt-5 m-3"><strong>Informarções</strong></li>
+                        <li class="nav-item"><a href="/pages/conta.html" class="nav-link"><i class="fas fa-user me-2"></i>Conta</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" id="logoutBtnSidebar"><i class="fas fa-sign-in-alt me-2"></i>Sair</a></li>
+                    </ul>
+                </div>
+            </nav>
+
+            <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">Produtos</h5>
+                            </div>
+                            <div class="card-body table-responsive">
+                              <div class="row mb-3">
+                                <div class="col-md-4">
+                                  <input type="text" id="filtroNome" class="form-control" placeholder="Filtrar por nome do produto">
+                                </div>
+                                <div class="col-md-4">
+                                  <input type="text" id="filtroEntrega" class="form-control" placeholder="Filtrar por previsão (ex: 10/07/2025 ou SEM PREV.)">
+                                </div>
+                                <div class="col-md-4">
+                                  <select id="filtroStatus" class="form-select">
+                                    <option value="">Todos os status</option>
+                                    <option value="PENDENTE">PENDENTE</option>
+                                    <option value="PARCIAL">PARCIAL</option>
+                                  </select>
+                                </div>
+                              </div>
+                                <table class="table align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">Imagem</th>
+                                            <th scope="col">Produto</th>
+                                            <th scope="col">Quantidade</th>
+                                            <th scope="col">Valor</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Previsão de Entrega</th>
+                                            <th scope="col" class="text-center">Editar</th>
+                                            <th scope="col" class="text-center">Excluir</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="produtosTableBody"></tbody>
+                                </table>
+                                <div id="loadingIndicator" class="text-center mt-3" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Carregando...</span>
+                                    </div>
+                                    <p>Carregando produtos...</p>
+                                </div>
+                                <div id="noDataMessage" class="alert alert-info mt-3" style="display: none;">
+                                    Nenhum produto encontrado.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal de imagem -->
+    <div class="modal fade" id="modalImagem" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <img id="modal-img" src="" alt="Imagem ampliada" class="img-fluid" style="max-height: 90vh;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+      let produtos = [];
+  
+      document.addEventListener('DOMContentLoaded', async () => {
+          const usuario = sessionStorage.getItem('usuario');
+          const senha = sessionStorage.getItem('senha');
+          const codparc = sessionStorage.getItem('codparc');
+  
+          const produtosTableBody = document.getElementById('produtosTableBody');
+          const loadingIndicator = document.getElementById('loadingIndicator');
+          const noDataMessage = document.getElementById('noDataMessage');
+  
+          if (!usuario || !senha || !codparc) {
+              alert('Sessão expirada ou credenciais ausentes. Faça login novamente.');
+              window.location.href = '/pages/login.html';
+              return;
+          }
+  
+          loadingIndicator.style.display = 'block';
+  
+          try {
+              const response = await fetch('http://sankhya.nxboats.com.br:3000/api/produtos/all', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ usuario, senha, codparc })
+              });
+  
+              if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.erro || 'Erro desconhecido ao carregar produtos');
+              }
+  
+              produtos = await response.json();
+              loadingIndicator.style.display = 'none';
+  
+              if (produtos.length === 0) {
+                  noDataMessage.style.display = 'block';
+                  return;
+              }
+  
+              renderizarProdutos(produtos);
+          } catch (error) {
+              console.error('Erro ao buscar produtos:', error);
+              loadingIndicator.style.display = 'none';
+              alert('Erro ao carregar produtos: ' + error.message);
+          }
+  
+          // Adiciona listeners para filtros
+          document.getElementById('filtroNome')?.addEventListener('input', aplicarFiltros);
+          document.getElementById('filtroStatus')?.addEventListener('change', aplicarFiltros);
+          document.getElementById('filtroEntrega')?.addEventListener('input', aplicarFiltros);
+      });
+  
+      function renderizarProdutos(lista) {
+          const produtosTableBody = document.getElementById('produtosTableBody');
+          produtosTableBody.innerHTML = '';
+  
+          lista.forEach(produto => {
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                  <td><img src="${produto.IMAGEM}" onerror="this.onerror=null;this.src='/style/image/no-image.png';" onclick="mostrarImagemModal('${produto.IMAGEM || '/style/image/no-image.png'}')" alt="img" style="width:50px; height:40px; object-fit:contain; border:1px solid #ccc; border-radius:4px;"></td>
+                  <td>${produto.PRODUTO}</td>
+                  <td>${produto.QTDLIQ}</td>
+                  <td>R$ ${parseFloat(produto.VLRTOT).toFixed(2)}</td>
+                  <td><span class="badge ${produto.STATUS === 'PENDENTE' ? 'bg-warning' : 'bg-info'}">${produto.STATUS}</span></td>
+                  <td><span class="badge ${produto.AD_DTENTREGA === 'SEM PREV.' ? 'bg-danger' : 'bg-light'}">${produto.AD_DTENTREGA}</span></td>
+                  <td><i class="fas fa-pen text-center text-primary"></i></td>
+                  <td><i class="fas fa-trash text-center text-primary"></i></td>
+              `;
+              produtosTableBody.appendChild(row);
+          });
+      }
+  
+      function aplicarFiltros() {
+          const nome = document.getElementById('filtroNome')?.value?.toLowerCase() || '';
+          const status = document.getElementById('filtroStatus')?.value || '';
+          const entrega = document.getElementById('filtroEntrega')?.value?.toLowerCase() || '';
+  
+          const filtrados = produtos.filter(p => {
+              const nomeOk = p.PRODUTO.toLowerCase().includes(nome);
+              const statusOk = !status || p.STATUS === status;
+              const entregaOk = p.AD_DTENTREGA.toLowerCase().includes(entrega);
+              return nomeOk && statusOk && entregaOk;
+          });
+  
+          renderizarProdutos(filtrados);
+      }
+  
+      function mostrarImagemModal(src) {
+          document.getElementById("modal-img").src = src;
+          const modal = new bootstrap.Modal(document.getElementById("modalImagem"));
+          modal.show();
+      }
+  
+      document.getElementById("logoutBtnSidebar")?.addEventListener("click", () => {
+          sessionStorage.clear();
+          window.location.href = "/pages/login.html";
+      });
+      
+  </script>
+  
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

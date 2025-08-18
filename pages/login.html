@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Fornecedor</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="/style/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="row d-flex justify-content-center align-items-center mt-5">
+            <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+                <div class="card py-3 px-2">
+                    <img src="https://nxboats.com.br/wp-content/themes/padrao/build/img/logo-nxboats.png"
+                        class="col-8 mx-auto d-block" alt="logo nxboats">
+                    <div class="division">
+                        <div class="row">
+                            <div class="col-3">
+                                <div class="line l"></div>
+                            </div>
+                            <div class="col-6"><span>LOGIN</span></div>
+                            <div class="col-3">
+                                <div class="line r"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <form class="myform">
+                        <div class="form-group">
+                            <input type="email" class="form-control" placeholder="Usuario">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" class="form-control" placeholder="Senha">
+                        </div>
+                        <div class="form-group mt-3">
+                            <button type="button" class="btn btn-block btn-primary btn-lg"><small><i
+                                        class="far fa-user pr-2"></i>Conectar</small></button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.querySelector('.btn-primary').addEventListener('click', async () => {
+            const email = document.querySelector('input[type="email"]').value;
+            const senha = document.querySelector('input[type="password"]').value;
+
+            try {
+                const response = await fetch('http://sankhya.nxboats.com.br:3000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario: email, senha })
+                });
+
+                const data = await response.json();
+
+                if (data.sucesso) {
+                    sessionStorage.setItem("usuario", email);
+                    sessionStorage.setItem("senha", senha);
+                    sessionStorage.setItem("codparc", data.codparc);
+                    window.location.href = "/pages/dashboard.html";
+                } else {
+                    alert("Falha no login");
+                }
+
+            } catch (err) {
+                alert("Erro ao conectar com o servidor");
+                console.error(err);
+            }
+        });
+    </script>
+</body>
+
+</html>

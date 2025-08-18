@@ -1,0 +1,141 @@
+body {
+    background-color: #f4f7fa;
+    font-family: 'Roboto', sans-serif;
+    color: #343a40;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: #ffffff;
+    height: 100vh;
+    border-right: 1px solid #dee2e6;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .sidebar h6 {
+    font-weight: bold;
+    color: #495057;
+  }
+
+  .sidebar a {
+    color: #495057;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: background 0.2s ease;
+  }
+
+  .sidebar a.active,
+  .sidebar a:hover {
+    background: linear-gradient(to right, #1E90FF, #00BFFF);
+    color: #fff;
+  }
+
+  .sidebar .nav-item {
+    margin-bottom: 10px;
+  }
+
+  /* Cards */
+  .card {
+    border: none;
+    border-radius: 12px;
+    background-color: #ffffff;
+    color: #343a40;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .card-body {
+    padding: 20px;
+  }
+
+  .card-icon {
+    font-size: 1.4rem;
+    padding: 14px;
+    border-radius: 8px;
+    background: #f1f3f5;
+    color: #ffffff;
+  }
+
+  .bg-primary .card-icon {
+    background-color: #1E90FF;
+  }
+
+  .bg-danger .card-icon {
+    background-color: #FF4D4F;
+  }
+
+  .bg-success .card-icon {
+    background-color: #28a745;
+  }
+
+  .bg-warning .card-icon {
+    background-color: #ffc107;
+  }
+
+  /* Table */
+  .table thead th {
+    background-color: #f8f9fa;
+    color: #1E90FF;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+  }
+
+  .table td {
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .badge {
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 6px;
+  }
+
+  .badge.bg-success {
+    background-color: #28a745;
+    color: #fff;
+  }
+
+  .badge.bg-secondary {
+    background-color: #6c757d;
+    color: #fff;
+  }
+
+  /* Avatares e ícones */
+  img.rounded-circle {
+    border: 2px solid #dee2e6;
+  }
+
+  a.text-primary {
+    color: #1E90FF;
+  }
+
+  a.text-primary:hover {
+    color: #007bff;
+  }
+
+  .card-header {
+    background-color: transparent;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  h5,
+  h6,
+  strong {
+    color: #343a40;
+  }
+
+  canvas {
+    width: 100% !important;
+    height: auto !important;
+  }
+  
+  .card-title {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  

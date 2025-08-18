@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Fornecedor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/colorjs.io/dist/color.global.js"></script>
+    <link rel="stylesheet" href="/style/dashboard.css">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="position-sticky">
+                    <div class="text-center py-3">
+                        <img src="https://www.allflags.com.br/wp-content/uploads/2017/09/logo_nxboats.png"
+                            class="img-fluid" alt="Logo">
+                        <h6 class="mt-5">Menu</h6>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a href="/pages/dashboard.html" class="nav-link"><i
+                                    class="fas fa-tv me-2"></i>Painel</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link active"><i
+                                    class="fas fa-truck me-2"></i>Pedidos</a></li>
+                        <li class="nav-item"><a href="/pages/produtos.html" class="nav-link"><i
+                                    class="fas fa-cube me-2"></i>Produtos</a></li>
+                        <li class="nav-item"><a href="/pages/finaceiro.html" class="nav-link"><i
+                                    class="fas fa-sack-dollar me-2"></i>Financeiro</a></li>
+                        <li class="nav-item mt-5 m-3"><strong>Informarções</strong></li>
+                        <li class="nav-item"><a href="/pages/conta.html" class="nav-link"><i
+                                    class="fas fa-user me-2"></i>Conta</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link" id="logoutBtnSidebar"><i
+                                    class="fas fa-sign-in-alt me-2"></i>Sair</a></li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main -->
+            <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+
+                <!--Table Pedidos-->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">Pedidos</h5>
+                            </div>
+                            <div class="card-body table-responsive">
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="filtro-nunota"
+                                            placeholder="Buscar Nº Pedido" oninput="filtrarPedidos()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-select" id="filtro-status" onchange="filtrarPedidos()">
+                                            <option value="">Todos os Status</option>
+                                            <option value="ENTREGUE">Entregue</option>
+                                            <option value="PENDENTE">Pendente</option>
+                                            <option value="ATRASADO">Atrasado</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <table class="table align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">N° Pedido</th>
+                                            <th scope="col">Dt. Negociacao</th>
+                                            <th scope="col">Qtd. Total</th>
+                                            <th scope="col">Vlr. Total</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Prev. Entrega</th>
+                                            <th scope="col" class="text-center">Edit</th>
+                                            <th scope="col" class="text-center">Imprimir</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-pedidos">
+                                        <!-- Linhas de pedidos geradas dinamicamente -->
+                                    </tbody>
+                                </table>
+
+                                <!-- Paginador de pedidos -->
+                                <div class="d-flex justify-content-between align-items-center mt-3"
+                                    id="paginacao-pedidos"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!--Table Produtos-->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-white">
+                                <h5 class="mb-0">Produtos</h5>
+                            </div>
+                            <div class="card-body table-responsive">
+                                <table class="table align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">Pedido</th>
+                                            <th scope="col">Produto</th>
+                                            <th scope="col">Qtd</th>
+                                            <th scope="col">Valor</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Prev. Entrega</th>
+                                            <th scope="col" class="text-center">Edit</th>
+                                            <th scope="col" class="text-center">Excluir</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-produtos"></tbody>
+                                </table>
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <span id="pagina-produto-info">Página 1 de 1</span>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-primary me-2"
+                                            onclick="paginaAnteriorProduto()">Anterior</button>
+                                        <button class="btn btn-sm btn-outline-primary ms-2"
+                                            onclick="proximaPaginaProduto()">Próxima</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal de imagem -->
+    <div class="modal fade" id="modalImagem" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <img id="modal-img" src="" alt="Imagem ampliada" class="img-fluid" style="max-height: 90vh;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para edição de pedido -->
+    <div class="modal fade" id="modalEditarPedido" tabindex="-1" aria-labelledby="modalEditarPedidoLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Pedido</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEditarPedido">
+                        <input type="hidden" id="editNUNOTA" />
+                        <div class="mb-3">
+                            <label for="novaDataEntrega" class="form-label">Nova Data de Entrega</label>
+                            <input type="date" class="form-control" id="novaDataEntrega" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="observacaoEntrega" class="form-label">Observação</label>
+                            <textarea class="form-control" id="observacaoEntrega" rows="3"
+                                placeholder="Digite observação..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-dark w-100">Salvar alterações</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let todosPedidos = [];
+        let produtosPedido = [];
+        let paginaPedidoAtual = 1;
+        let paginaProdutoAtual = 1;
+        const pedidosPorPagina = 5;
+        const produtosPorPagina = 5;
+
+        function renderizarPedidos() {
+            const filtroNunota = document.getElementById("filtro-nunota")?.value.toLowerCase() || "";
+            const filtroStatus = document.getElementById("filtro-status")?.value || "";
+
+            const tbody = document.querySelector("#tabela-pedidos");
+            tbody.innerHTML = "";
+
+            const pedidosFiltrados = todosPedidos.filter(p => {
+                return (!filtroNunota || p.NUNOTA.toString().includes(filtroNunota)) &&
+                    (!filtroStatus || p.STATUS === filtroStatus);
+            });
+
+            const inicio = (paginaPedidoAtual - 1) * pedidosPorPagina;
+            const fim = inicio + pedidosPorPagina;
+            const pedidosPagina = pedidosFiltrados.slice(inicio, fim);
+
+            pedidosPagina.forEach(pedido => {
+                const tr = document.createElement("tr");
+                tr.style.cursor = "pointer";
+                tr.innerHTML = `
+          <td>${pedido.NUNOTA}</td>
+          <td>${pedido.DTNEG}</td>
+          <td>${pedido.QTDLIQ}</td>
+          <td>R$ ${parseFloat(pedido.VLRNOTA).toFixed(2)}</td>
+          <td><span class="badge ${pedido.STATUS === 'ENTREGUE' ? 'bg-success' : pedido.STATUS === 'ATRASADO' ? 'bg-danger' : 'bg-warning'}">${pedido.STATUS}</span></td>
+          <td><span class="badge ${pedido.AD_DTENTREGA === 'SEM PREV.' ? 'bg-danger' : 'bg-secondary'}">${pedido.AD_DTENTREGA}</span></td>
+          <td class="text-center">
+            <a href="#" onclick="abrirModalEdicao(${pedido.NUNOTA})"><i class="fas fa-pen text-primary"></i></a>
+          </td>
+          <td class="text-center">
+            <a href="#" onclick="baixarRelatorioPedido(${pedido.NUNOTA}, event)">
+            <i class="fas fa-print text-dark"></i>
+            </a>
+          </td>
+        `;
+                tr.addEventListener("click", () => carregarProdutosPorPedido(pedido.NUNOTA));
+                tbody.appendChild(tr);
+            });
+
+            atualizarPaginacaoPedidos(pedidosFiltrados.length);
+        }
+
+        function filtrarPedidos() {
+            paginaPedidoAtual = 1;
+            renderizarPedidos();
+        }
+
+        function atualizarPaginacaoPedidos(totalItens) {
+            const totalPaginas = Math.ceil(totalItens / pedidosPorPagina);
+            const div = document.getElementById("paginacao-pedidos");
+            div.innerHTML = `
+        <button class="btn btn-sm btn-outline-primary me-2" ${paginaPedidoAtual === 1 ? 'disabled' : ''} onclick="paginaAnteriorPedido()">Anterior</button>
+        <span>Página ${paginaPedidoAtual} de ${totalPaginas}</span>
+        <button class="btn btn-sm btn-outline-primary ms-2" ${paginaPedidoAtual === totalPaginas ? 'disabled' : ''} onclick="proximaPaginaPedido()">Próxima</button>
+      `;
+        }
+
+        function paginaAnteriorPedido() {
+            if (paginaPedidoAtual > 1) {
+                paginaPedidoAtual--;
+                renderizarPedidos();
+            }
+        }
+
+        function proximaPaginaPedido() {
+            const totalPaginas = Math.ceil(todosPedidos.length / pedidosPorPagina);
+            if (paginaPedidoAtual < totalPaginas) {
+                paginaPedidoAtual++;
+                renderizarPedidos();
+            }
+        }
+
+        async function carregarPedidos() {
+            const usuario = sessionStorage.getItem("usuario");
+            const senha = sessionStorage.getItem("senha");
+            const codparc = sessionStorage.getItem("codparc");
+
+            if (!usuario || !senha || !codparc) {
+                alert("Credenciais ausentes. Faça login novamente.");
+                window.location.href = "/pages/login.html";
+                return;
+            }
+
+            try {
+                const res = await fetch('http://sankhya.nxboats.com.br:3000/api/pedidos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario, senha, codparc })
+                });
+
+                todosPedidos = await res.json();
+                paginaPedidoAtual = 1;
+                renderizarPedidos();
+
+                // Carrega automaticamente os produtos do primeiro pedido listado
+                if (todosPedidos.length > 0) {
+                    carregarProdutosPorPedido(todosPedidos[0].NUNOTA);
+                }
+            } catch (err) {
+                console.error("Erro ao carregar pedidos:", err.message);
+                alert("Erro ao carregar pedidos.");
+            }
+        }
+
+        async function carregarProdutosPorPedido(nunota) {
+            const usuario = sessionStorage.getItem("usuario");
+            const senha = sessionStorage.getItem("senha");
+
+            if (!usuario || !senha || !nunota) {
+                console.warn("⚠️ Dados incompletos para buscar produtos:", { usuario, senha, nunota });
+                return;
+            }
+
+            try {
+                const res = await fetch(`http://sankhya.nxboats.com.br:3000/api/produtos-por-pedido?usuario=${usuario}&senha=${senha}&nunota=${nunota}`);
+
+                const text = await res.text(); // Pegamos como texto para validar manualmente
+                if (!res.ok) {
+                    console.error("❌ Resposta HTTP inválida:", res.status, text);
+                    throw new Error(`Erro HTTP ${res.status}`);
+                }
+
+                let json;
+                try {
+                    json = JSON.parse(text);
+                } catch (e) {
+                    console.error("❌ Falha ao converter resposta em JSON:", e.message, text);
+                    throw new Error("Erro de parsing JSON");
+                }
+
+                if (!Array.isArray(json)) {
+                    console.error("❌ Formato inválido. Esperado um array:", json);
+                    throw new Error("Formato inesperado");
+                }
+
+                produtosPedido = json;
+                paginaProdutoAtual = 1;
+                renderizarProdutos();
+                console.log("✅ Produtos carregados para o pedido:", nunota, produtosPedido);
+
+            } catch (err) {
+                console.error("❌ Falha ao carregar produtos do pedido:", nunota, err);
+                if (produtosPedido.length === 0) {
+                    alert("Erro ao buscar produtos do pedido selecionado.");
+                }
+            }
+        }
+
+        async function baixarRelatorioPedido(nunota) {
+            const usuario = sessionStorage.getItem("usuario");
+            const senha = sessionStorage.getItem("senha");
+
+            try {
+                const res = await fetch("http://sankhya.nxboats.com.br:3000/api/imprimir-pedido", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ nunota, usuario, senha })
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`Erro ao gerar o relatório: ${res.status} - ${errorText}`);
+                }
+
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                // Abre o PDF em nova aba
+                window.open(blobUrl, '_blank');
+
+                // Se desejar fazer download também, descomente o bloco abaixo:
+                /*
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = `relatorio-pedido-${nunota}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                */
+
+            } catch (error) {
+                console.error("❌ Erro ao baixar relatório:", error);
+                alert("Erro ao gerar ou baixar o relatório: " + error.message);
+            }
+        }
+
+
+        function renderizarProdutos() {
+            const inicio = (paginaProdutoAtual - 1) * produtosPorPagina;
+            const fim = inicio + produtosPorPagina;
+            const lista = produtosPedido.slice(inicio, fim);
+            const tbody = document.querySelector("#tabela-produtos");
+            tbody.innerHTML = "";
+
+            lista.forEach(prod => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td>${prod.NUNOTA}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <img src="${prod.IMAGEM || '/style/image/no-image.png'}" onerror="this.onerror=null;this.src='/style/image/no-image.png';" alt="img" style="width:50px; height:40px; object-fit:contain; border:1px solid #ccc; border-radius:4px; cursor:pointer;" onclick="mostrarImagemModal('${prod.IMAGEM || '/style/image/no-image.png'}')">
+              <span>${prod.PRODUTO}</span>
+            </div>
+          </td>
+          <td>${prod.QTDLIQ}</td>
+          <td>R$ ${parseFloat(prod.VLRTOT).toFixed(2)}</td>
+          <td><span class="badge ${prod.STATUS === 'PENDENTE' ? 'bg-warning' : 'bg-success'}">${prod.STATUS}</span></td>
+          <td><span class="badge ${prod.AD_DTENTREGA === 'SEM PREV.' ? 'bg-danger' : 'bg-light'}">${prod.AD_DTENTREGA}</span></td>
+          <td class="text-center"><a href="#"><i class="fas fa-pen text-primary"></i></a></td>
+          <td class="text-center"><a href="#"><i class="fas fa-trash text-danger"></i></a></td>
+        `;
+                tbody.appendChild(tr);
+            });
+
+            const totalPaginas = Math.ceil(produtosPedido.length / produtosPorPagina);
+            document.getElementById("pagina-produto-info").textContent = `Página ${paginaProdutoAtual} de ${totalPaginas}`;
+        }
+
+        function paginaAnteriorProduto() {
+            if (paginaProdutoAtual > 1) {
+                paginaProdutoAtual--;
+                renderizarProdutos();
+            }
+        }
+
+        function proximaPaginaProduto() {
+            const totalPaginas = Math.ceil(produtosPedido.length / produtosPorPagina);
+            if (paginaProdutoAtual < totalPaginas) {
+                paginaProdutoAtual++;
+                renderizarProdutos();
+            }
+        }
+
+        function mostrarImagemModal(src) {
+            const modalImg = document.getElementById("modal-img");
+            modalImg.src = src;
+            const modal = new bootstrap.Modal(document.getElementById("modalImagem"));
+            modal.show();
+        }
+
+        function abrirModalEdicao(nunota) {
+            // Preenche o input hidden com o número do pedido
+            document.getElementById("editNUNOTA").value = nunota;
+            document.getElementById("novaDataEntrega").value = "";
+            document.getElementById("observacaoEntrega").value = "";
+
+            const modal = new bootstrap.Modal(document.getElementById("modalEditarPedido"));
+            modal.show();
+        }
+
+        // Evento submit do formulário
+        document.getElementById("formEditarPedido").addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const nunota = document.getElementById("editNUNOTA").value;
+            const novaData = document.getElementById("novaDataEntrega").value;
+            const obs = document.getElementById("observacaoEntrega").value;
+
+            if (!novaData) {
+                alert("Por favor, selecione uma data de entrega.");
+                return;
+            }
+
+            try {
+                const usuario = sessionStorage.getItem("usuario");
+                const senha = sessionStorage.getItem("senha");
+
+                const res = await fetch("http://sankhya.nxboats.com.br:3000/api/editar-pedido", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        usuario,
+                        senha,
+                        nunota,
+                        novaDataEntrega: novaData,
+                        novaObs: obs
+                    })
+                });
+
+
+                const json = await res.json();
+
+                if (json.sucesso) {
+                    alert("✅ Pedido atualizado com sucesso!");
+                    const modal = bootstrap.Modal.getInstance(document.getElementById("modalEditarPedido"));
+                    modal.hide();
+                    carregarPedidos(); // Recarrega os pedidos para refletir a alteração
+                } else {
+                    alert("Erro ao editar pedido: " + (json.erro || "Erro desconhecido"));
+                }
+            } catch (err) {
+                console.error("Erro ao enviar edição para o backend:", err);
+                alert("Erro ao salvar alteração do pedido.");
+            }
+        });
+
+
+        document.addEventListener("DOMContentLoaded", () => {
+            carregarPedidos();
+        });
+
+        document.getElementById("logoutBtnSidebar")?.addEventListener("click", () => {
+            sessionStorage.clear();
+            window.location.href = "/pages/login.html";
+        });
+    </script>
+
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
