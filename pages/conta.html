@@ -133,7 +133,7 @@
             }
 
             try {
-                const response = await fetch("http://sankhya.nxboats.com.br:3000/api/conta", {
+                const response = await fetch("http://localhost:3000/api/conta", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ usuario, senha, codparc })
@@ -172,7 +172,7 @@
             const codparc = sessionStorage.getItem("codparc");
 
             try {
-                const response = await fetch("http://sankhya.nxboats.com.br:3000/api/contatos", {
+                const response = await fetch("http://localhost:3000/api/contatos", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ usuario, senha, codparc })

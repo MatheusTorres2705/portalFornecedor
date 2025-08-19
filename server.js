@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const path = require('path');
+require('dotenv').config();
 
 const app = express();
 app.use(cors({
@@ -64,6 +65,320 @@ app.post('/api/login', async (req, res) => {
         res.status(401).json({ erro: 'Falha no login' });
     }
 });
+
+// --- inicio IA NXCopilot ---
+// ===== AÇÕES INTELIGENTES NO CHAT =====
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const GEMINI_MODEL = "gemini-1.5-flash";
+
+// Helper: criar axios com timeout decente
+const axiosInstance = axios.create({ timeout: 20000, validateStatus: () => true });
+
+// Helper: login no Sankhya e retorna JSESSIONID
+async function sankhyaLogin(usuario, senha) {
+  const r = await axiosInstance.post(
+    `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+    {
+      serviceName: "MobileLoginSP.login",
+      requestBody: { NOMUSU: { "$": usuario.toUpperCase() }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } }
+    },
+    { headers: { "Content-Type": "application/json" } }
+  );
+  const jsessionid = r.data?.responseBody?.jsessionid?.["$"];
+  if (!jsessionid) throw new Error("Falha no login Sankhya");
+  return jsessionid;
+}
+
+// Helper: executa SQL e retorna `rows`
+async function sankhyaSQL(jsessionid, sql) {
+  const payload = {
+    serviceName: "DbExplorerSP.executeQuery",
+    requestBody: { sql, outputType: "json" }
+  };
+  const r = await axiosInstance.post(
+    `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+    payload,
+    { headers: { "Content-Type": "application/json", "Cookie": `JSESSIONID=${jsessionid}` } }
+  );
+  if (!r.data?.responseBody?.rows) return [];
+  return r.data.responseBody.rows;
+}
+
+// Helpers: parsing rápido (pt-BR)
+function extrairNunota(texto) {
+  const m = texto.match(/pedido\s*(n[úu]mero)?\s*([0-9]{4,})|nunota\s*([0-9]{4,})/i);
+  return m ? (m[2] || m[3]) : null;
+}
+function extrairDataBR(texto) {
+  // aceita 01/09/2025 ou 2025-09-01
+  const m1 = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m1) return `${m1[1]}/${m1[2]}/${m1[3]}`;
+  const m2 = texto.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
+  return null;
+}
+
+// Classificador simples de intenção (regras)
+function detectarIntencao(msg) {
+  const t = msg.toLowerCase();
+
+  // contagens
+  if (t.includes("do mês") || t.includes("deste mês") || t.includes("mês atual")) return { intent: "contar_pedidos_mes" };
+  if (t.includes("atrasad")) return { intent: "listar_atrasados" };
+  if (t.includes("no prazo") || t.includes("em dia")) return { intent: "listar_no_prazo" };
+  if (t.includes("a vencer") || t.includes("vencer")) return { intent: "listar_a_vencer" };
+
+  // gráficos / séries
+  if (t.includes("vendas por mês") || t.includes("vendas mensais") || t.includes("valor por mês"))
+    return { intent: "serie_vendas_mes" };
+  if (t.includes("pedidos por mês") || t.includes("quantidade por mês"))
+    return { intent: "serie_pedidos_mes" };
+
+  // por NUNOTA
+  if (t.includes("produto") && (t.includes("pedido") || t.includes("nunota"))) return { intent: "produtos_por_pedido" };
+  if (t.includes("imprimir") && (t.includes("pedido") || t.includes("nunota"))) return { intent: "imprimir_pedido" };
+  if ((t.includes("alterar") || t.includes("mudar") || t.includes("editar")) && t.includes("entrega"))
+    return { intent: "editar_data_pedido" };
+
+  // financeiro
+  if (t.includes("financeiro") || t.includes("parcelas") || t.includes("a pagar"))
+    return { intent: "listar_financeiro" };
+
+  return { intent: "fallback" };
+}
+
+// Formatações
+function fmtBRL(n) {
+  const v = Number(n || 0);
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+// Rota do chat com ações inteligentes
+app.post("/api/ai/chat", async (req, res) => {
+  try {
+    const { message, usuario, senha, codparc, history } = req.body || {};
+    if (!message || !usuario || !senha) {
+      return res.status(400).json({ erro: "Parâmetros ausentes (message, usuario, senha)." });
+    }
+
+    const { intent } = detectarIntencao(message);
+
+    // Algumas intenções precisam de NUNOTA/data
+    const nunota = extrairNunota(message);
+    const dataBR = extrairDataBR(message);
+
+    // Para intents que leem dados, vamos ao banco
+    if (["contar_pedidos_mes", "listar_atrasados", "listar_no_prazo", "listar_a_vencer",
+         "serie_vendas_mes", "serie_pedidos_mes", "produtos_por_pedido", "listar_financeiro"].includes(intent)) {
+      const jsession = await sankhyaLogin(usuario, senha);
+
+      // Despacho por intenção
+      if (intent === "contar_pedidos_mes") {
+        const sql = `
+          SELECT COUNT(CAB.NUNOTA) AS QTD
+          FROM TGFCAB CAB
+          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE PAR.CODPARC = ${codparc}
+            AND TO_CHAR(DTNEG,'MM/YYYY') = TO_CHAR(SYSDATE,'MM/YYYY')
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const qtd = rows?.[0]?.[0] || 0;
+        return res.json({
+          reply: `Você tem ${qtd} pedidos emitidos neste mês.`,
+          data: { table: { columns: ["Pedidos do mês"], rows: [[qtd]] } }
+        });
+      }
+
+      if (intent === "listar_atrasados") {
+        // Top 8 atrasados, ordenados por previsão mais antiga
+        const sql = `
+          SELECT CAB.NUNOTA,
+                 TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
+                 NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO
+          FROM TGFCAB CAB
+          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE PAR.CODPARC = ${codparc}
+            AND CAB.DTPREVENT < SYSDATE
+            AND EXISTS (SELECT 1 FROM TGFITE I WHERE I.NUNOTA = CAB.NUNOTA AND (I.QTDNEG - I.QTDENTREGUE) <> 0)
+          ORDER BY CAB.DTPREVENT ASC FETCH FIRST 8 ROWS ONLY
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const table = {
+          columns: ["NUNOTA", "Emissão", "Previsão"],
+          rows: rows.map(r => [r[0], r[1], r[2]])
+        };
+        const countSql = `
+          SELECT COUNT(DISTINCT CAB.NUNOTA)
+          FROM TGFCAB CAB JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE PAR.CODPARC = ${codparc} AND (CAB.DTPREVENT < SYSDATE OR CAB.DTPREVENT IS NULL)
+        `;
+        const c = await sankhyaSQL(jsession, countSql);
+        const total = c?.[0]?.[0] || table.rows.length;
+        return res.json({ reply: `Encontrei ${total} pedidos atrasados. Mostrando os primeiros ${table.rows.length}.`, data: { table } });
+      }
+
+      if (intent === "listar_no_prazo") {
+        const sql = `
+          SELECT CAB.NUNOTA,
+                 TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
+                 NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO
+          FROM TGFCAB CAB
+          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE PAR.CODPARC = ${codparc}
+            AND NVL(CAB.DTPREVENT, SYSDATE+365) >= SYSDATE
+            AND EXISTS (SELECT 1 FROM TGFITE I WHERE I.NUNOTA = CAB.NUNOTA AND (I.QTDNEG - I.QTDENTREGUE) <> 0)
+          ORDER BY CAB.DTPREVENT ASC FETCH FIRST 8 ROWS ONLY
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const table = { columns: ["NUNOTA", "Emissão", "Previsão"], rows: rows.map(r => [r[0], r[1], r[2]]) };
+        return res.json({ reply: `Alguns pedidos dentro do prazo:`, data: { table } });
+      }
+
+      if (intent === "listar_a_vencer") {
+        const sql = `
+          SELECT CAB.NUNOTA,
+                 TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
+                 NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO
+          FROM TGFCAB CAB
+          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE PAR.CODPARC = ${codparc}
+            AND CAB.DTPREVENT BETWEEN SYSDATE AND SYSDATE + 10
+            AND EXISTS (SELECT 1 FROM TGFITE I WHERE I.NUNOTA = CAB.NUNOTA AND (I.QTDNEG - I.QTDENTREGUE) <> 0)
+          ORDER BY CAB.DTPREVENT ASC FETCH FIRST 8 ROWS ONLY
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const table = { columns: ["NUNOTA", "Emissão", "Previsão"], rows: rows.map(r => [r[0], r[1], r[2]]) };
+        return res.json({ reply: `Pedidos que vencem nos próximos 10 dias:`, data: { table } });
+      }
+
+      if (intent === "serie_vendas_mes") {
+        const sql = `
+          SELECT SUM(CAB.VLRNOTA) as VALOR,
+                 TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
+          FROM TGFCAB CAB
+          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE CAB.TIPMOV = 'O'
+            AND CAB.STATUSNOTA = 'L'
+            AND CAB.DTNEG > TRUNC(SYSDATE - 365)
+            AND PAR.CODPARC = ${codparc}
+          GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
+          ORDER BY TRUNC(CAB.DTNEG, 'MM')
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const series = rows.map(r => ({ mes: r[1], valor: Number(r[0]) || 0 }));
+        return res.json({ reply: `Segue a série de vendas mensais (últimos 12 meses).`, data: { series } });
+      }
+
+      if (intent === "serie_pedidos_mes") {
+        const sql = `
+          SELECT COUNT(DISTINCT CAB.NUNOTA) as VALOR,
+                 TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
+          FROM TGFCAB CAB
+          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+          WHERE CAB.TIPMOV = 'O'
+            AND CAB.STATUSNOTA = 'L'
+            AND CAB.DTNEG > TRUNC(SYSDATE - 365)
+            AND PAR.CODPARC = ${codparc}
+          GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
+          ORDER BY TRUNC(CAB.DTNEG, 'MM')
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const series = rows.map(r => ({ mes: r[1], valor: Number(r[0]) || 0 }));
+        return res.json({ reply: `Quantidade de pedidos por mês (últimos 12 meses).`, data: { series } });
+      }
+
+      if (intent === "produtos_por_pedido") {
+        if (!nunota) return res.json({ reply: "Qual o NUNOTA do pedido? Ex.: 'produtos do pedido 123456'." });
+        const sql = `
+          SELECT ITE.NUNOTA,
+                 PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
+                 ITE.QTDNEG - ITE.QTDENTREGUE AS QTDLIQ,
+                 ITE.VLRTOT,
+                 CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
+                 NVL(TO_CHAR(ITE.AD_DTENTREGA,'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA
+          FROM TGFITE ITE
+          JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+          LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+          WHERE ITE.NUNOTA = ${nunota}
+          ORDER BY ITE.VLRTOT DESC FETCH FIRST 10 ROWS ONLY
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        if (!rows.length) return res.json({ reply: `Não encontrei itens para o pedido ${nunota}.` });
+        const table = {
+          columns: ["Produto", "Qtd Liq", "Valor", "Status", "Prev Entrega"],
+          rows: rows.map(r => [r[1], Number(r[2]) || 0, fmtBRL(r[3]), r[4], r[5]])
+        };
+        return res.json({ reply: `Itens do pedido ${nunota}:`, data: { table } });
+      }
+
+      if (intent === "listar_financeiro") {
+        const sql = `
+          SELECT TO_CHAR(FIN.DTVENC,'DD/MM/YYYY') AS VENC,
+                 FIN.VLRDESDOB,
+                 NVL(FIN.VLRBAIXA,0) AS BAIXA,
+                 CASE
+                    WHEN FIN.DTVENC < SYSDATE AND FIN.DHBAIXA IS NULL THEN 'ATRASADO'
+                    WHEN FIN.DTVENC > SYSDATE AND FIN.DHBAIXA IS NULL THEN 'A PAGAR'
+                    WHEN FIN.DHBAIXA IS NOT NULL THEN 'PAGO'
+                 END AS STATUS
+          FROM TGFFIN FIN
+          JOIN TGFPAR PAR ON PAR.CODPARC = FIN.CODPARC
+          WHERE PAR.CODPARC = ${codparc}
+            AND FIN.CODTIPTIT <> 29
+          ORDER BY FIN.DTVENC DESC FETCH FIRST 12 ROWS ONLY
+        `;
+        const rows = await sankhyaSQL(jsession, sql);
+        const table = { columns: ["Vencimento", "Valor", "Baixa", "Status"], rows: rows.map(r => [r[0], fmtBRL(r[1]), fmtBRL(r[2]), r[3]]) };
+        return res.json({ reply: "Últimas parcelas:", data: { table } });
+      }
+    }
+
+    // Intenções que ALTERAM dados: pedem confirmação
+    if (intent === "editar_data_pedido") {
+      const n = nunota || "(faltando NUNOTA)";
+      const d = dataBR || "(faltando data)";
+      return res.json({
+        reply: `Você quer alterar a data de entrega do pedido ${n} para ${d}, confere?`,
+        confirmationRequired: true,
+        action: { type: "editar_pedido", nunota: nunota, novaDataEntrega: dataBR }
+      });
+    }
+    if (intent === "imprimir_pedido") {
+      if (!nunota) return res.json({ reply: "Qual NUNOTA do pedido para imprimir? Ex.: 'imprimir pedido 123456'." });
+      return res.json({
+        reply: `Posso gerar o PDF do pedido ${nunota}. Deseja prosseguir?`,
+        confirmationRequired: true,
+        action: { type: "imprimir_pedido", nunota }
+      });
+    }
+
+    // Fallback: usa o Gemini para responder genericamente
+    const systemPrompt = `
+Você é um assistente do Portal do Fornecedor NX Boats. Responda em pt-BR, de forma objetiva.
+Se a pergunta parecer pedir listagens numéricas ou por NUNOTA, diga como o usuário pode pedir (ex.: "produtos do pedido 123456").
+    `.trim();
+
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction: systemPrompt });
+    const geminiHistory = Array.isArray(history)
+      ? history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }))
+      : [];
+    const chat = model.startChat({ history: geminiHistory });
+    const prefix = `Usuário: ${usuario} | CODPARC: ${codparc}\nPergunta: `;
+    const r = await chat.sendMessage(prefix + message);
+    const reply = r.response?.text?.() || "Não consegui gerar resposta agora.";
+    return res.json({ reply });
+  } catch (err) {
+    console.error("Falha /api/ai/chat:", err?.response?.data || err.message);
+    return res.status(500).json({ erro: "Falha na IA", detalhe: err?.response?.data || err.message });
+  }
+});
+
+// --- FIM IA NXCopilot ---
+
+
+
+
 
 //CONSULTA SQL
 

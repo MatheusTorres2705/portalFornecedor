@@ -50,9 +50,9 @@
         document.querySelector('.btn-primary').addEventListener('click', async () => {
             const email = document.querySelector('input[type="email"]').value;
             const senha = document.querySelector('input[type="password"]').value;
-
+//http://localhost:3000/api/pedidos-mes?usuario=MATHEUS&senha=87654321&codparc=1977
             try {
-                const response = await fetch('http://sankhya.nxboats.com.br:3000/api/login', {
+                const response = await fetch('http://localhost:3000/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ usuario: email, senha })

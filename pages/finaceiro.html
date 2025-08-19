@@ -164,7 +164,7 @@
 
       async function carregarDados() {
         try {
-          const response = await fetch('http://sankhya.nxboats.com.br:3000/api/financeiro', {
+          const response = await fetch('http://localhost:3000/api/financeiro', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ usuario, senha, codparc })

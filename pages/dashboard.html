@@ -2,51 +2,86 @@
 <html lang="pt-br">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Portal Fornecedor</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <!-- Bootstrap & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+
+  <!-- Charts (mantidos) -->
   <script src="https://cdn.jsdelivr.net/npm/colorjs.io/dist/color.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="/style/dashboard.css">
+
+  <link rel="stylesheet" href="/style/dashboard.css"/>
+
+  <style>
+    /* Estilo leve para os balões do chat */
+    .chat-box {
+      height: 380px;
+      overflow-y: auto;
+      background: #fafafa;
+      border: 1px solid #e9ecef;
+      border-radius: .5rem;
+      padding: 1rem;
+    }
+    .bubble {
+      max-width: 75%;
+      padding: .5rem .75rem;
+      border-radius: .75rem;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .bubble-user {
+      background: #0d6efd;
+      color: #fff;
+    }
+    .bubble-ai {
+      background: #f1f3f5;
+      color: #212529;
+    }
+    .sidebar .nav-link.active {
+      background: rgba(13,110,253,.1);
+      border-radius: .5rem;
+      font-weight: 600;
+    }
+  </style>
 </head>
 
 <body>
-  <div class="container-fluid">
-    <div class="row">
-      <!-- Sidebar -->
-      <nav class="col-md-2 d-none d-md-block sidebar">
-        <div class="position-sticky">
-          <div class="text-center py-3">
-            <img src="https://www.allflags.com.br/wp-content/uploads/2017/09/logo_nxboats.png" class="img-fluid"
-              alt="Logo">
-            <h6 class="mt-5">Menu</h6>
-          </div>
-          <ul class="nav flex-column">
-            <li class="nav-item"><a href="#" class="nav-link active"><i class="fas fa-tv me-2"></i>Painel</a></li>
-            <li class="nav-item"><a href="/pages/pedidos.html" class="nav-link"><i
-                  class="fas fa-truck me-2"></i>Pedidos</a></li>
-            <li class="nav-item"><a href="/pages/produtos.html" class="nav-link"><i
-                  class="fas fa-cube me-2"></i>Produtos</a></li>
-            <li class="nav-item"><a href="/pages/finaceiro.html" class="nav-link"><i
-                  class="fas fa-sack-dollar me-2"></i>Financeiro</a></li>
-            <li class="nav-item mt-5 m-3"><strong>Informarções</strong></li>
-            <li class="nav-item"><a href="/pages/conta.html" class="nav-link"><i class="fas fa-user me-2"></i>Conta</a>
-            </li>
-            <li class="nav-item"><a href="#" class="nav-link" id="logoutBtnSidebar"><i
-                  class="fas fa-sign-in-alt me-2"></i>Sair</a></li>
-          </ul>
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <nav class="col-md-2 d-none d-md-block sidebar">
+      <div class="position-sticky">
+        <div class="text-center py-3">
+          <img src="https://nxboats.com.br/wp-content/uploads/2022/07/nx-boats-noticia-empreendedorismo-logo-nx.png" class="img-fluid" alt="Logo"/>
+          <h6 class="mt-5">Menu</h6>
         </div>
-      </nav>
+        <ul class="nav flex-column px-2">
+          <li class="nav-item"><a href="#" class="nav-link active" id="tab-dashboard"><i class="fas fa-tv me-2"></i>Painel</a></li>
+          <li class="nav-item"><a href="#" class="nav-link" id="tab-chat"><i class="fas fa-comments me-2"></i>Chat IA</a></li>
 
-      <!-- Main -->
-      <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
-        <div
-          class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-          <h1 class="h4">Portal Do Fornecedor</h1>
-        </div>
+          <li class="nav-item mt-4"><a href="/pages/pedidos.html" class="nav-link"><i class="fas fa-truck me-2"></i>Pedidos</a></li>
+          <li class="nav-item"><a href="/pages/produtos.html" class="nav-link"><i class="fas fa-cube me-2"></i>Produtos</a></li>
+          <li class="nav-item"><a href="/pages/finaceiro.html" class="nav-link"><i class="fas fa-sack-dollar me-2"></i>Lista de Falta</a></li>
 
+          <li class="nav-item mt-5 m-3"><strong>Informações</strong></li>
+          <li class="nav-item"><a href="/pages/conta.html" class="nav-link"><i class="fas fa-user me-2"></i>Conta</a></li>
+          <li class="nav-item"><a href="#" class="nav-link" id="logoutBtnSidebar"><i class="fas fa-sign-in-alt me-2"></i>Sair</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
+      <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h4">Painel de Compras - Diego</h1>
+      </div>
+
+      <!-- ===================== DASHBOARD ===================== -->
+      <section id="sec-dashboard">
         <!-- Cards -->
         <div class="row g-3">
           <div class="col-md-3">
@@ -114,7 +149,7 @@
           </div>
         </div>
 
-        <!-- graficos -->
+        <!-- Gráficos -->
         <div class="row mt-4">
           <div class="col-md-6">
             <div class="card shadow-sm p-3">
@@ -139,7 +174,7 @@
           <div class="col-md-6">
             <div class="card shadow-sm p-3">
               <div class="card-body" style="height: 400px;">
-                <h6 class="card-title text-center text-primary fw-bold mb-3">Divergencia de Portaria</h6>
+                <h6 class="card-title text-center text-primary fw-bold mb-3">Divergência de Portaria</h6>
                 <canvas id="grafico3" style="height: 250px !important;"></canvas>
               </div>
             </div>
@@ -160,40 +195,31 @@
                   </thead>
                   <tbody id="tabela-produtos">
                     <tr>
-                      <td><img
-                          src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSol4AdgeQxS55Dga_nQUlO2buy2EuG-h6d1A&s"
-                          class="img-thumbnail" width="50" alt="Produto 1"></td>
+                      <td><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSol4AdgeQxS55Dga_nQUlO2buy2EuG-h6d1A&s" class="img-thumbnail" width="50" alt="Produto 1"></td>
                       <td>Lancha NX340</td>
                       <td>12</td>
                       <td>R$ 1.200.000</td>
                     </tr>
                     <tr>
-                      <td><img
-                          src="https://static.wixstatic.com/media/615d1f_250fc32a09804797951a1e01257c50dc~mv2.png/v1/fill/w_280,h_181,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/615d1f_250fc32a09804797951a1e01257c50dc~mv2.png"
-                          class="img-thumbnail" width="50" alt="Produto 2"></td>
+                      <td><img src="https://static.wixstatic.com/media/615d1f_250fc32a09804797951a1e01257c50dc~mv2.png/v1/fill/w_280,h_181,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/615d1f_250fc32a09804797951a1e01257c50dc~mv2.png" class="img-thumbnail" width="50" alt="Produto 2"></td>
                       <td>Jet Ski WaveX</td>
                       <td>30</td>
                       <td>R$ 45.000</td>
                     </tr>
                     <tr>
-                      <td><img src="https://oestemarine.com.br/wp-content/uploads/2023/11/barco-de-aluminio-1.jpg"
-                          class="img-thumbnail" width="50" alt="Produto 3"></td>
+                      <td><img src="https://oestemarine.com.br/wp-content/uploads/2023/11/barco-de-aluminio-1.jpg" class="img-thumbnail" width="50" alt="Produto 3"></td>
                       <td>Barco Pesca Pro</td>
                       <td>18</td>
                       <td>R$ 320.000</td>
                     </tr>
                     <tr>
-                      <td><img
-                          src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_Bf24tKOznPE_mDfbXCqsFan3ApXrj0R2aw&s"
-                          class="img-thumbnail" width="50" alt="Produto 4"></td>
+                      <td><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_Bf24tKOznPE_mDfbXCqsFan3ApXrj0R2aw&s" class="img-thumbnail" width="50" alt="Produto 4"></td>
                       <td>Lancha Esportiva LX</td>
                       <td>8</td>
                       <td>R$ 980.000</td>
                     </tr>
                     <tr>
-                      <td><img
-                          src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTzi7NB4MD9c3WEQ51B7MeQFt98P7p0JQNZfg&s"
-                          class="img-thumbnail" width="50" alt="Produto 5"></td>
+                      <td><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTzi7NB4MD9c3WEQ51B7MeQFt98P7p0JQNZfg&s" class="img-thumbnail" width="50" alt="Produto 5"></td>
                       <td>Catamarã Oceanic</td>
                       <td>4</td>
                       <td>R$ 2.500.000</td>
@@ -204,285 +230,398 @@
             </div>
           </div>
         </div>
+      </section>
 
+      <!-- ===================== CHAT IA ===================== -->
+      <section id="sec-chat-ia" class="d-none">
+        <div class="card shadow-sm mt-4">
+          <div class="card-body">
+            <h6 class="card-title mb-3"><i class="fas fa-robot me-2"></i> Pergunte ao NXPilot </h6>
 
-      </main>
-    </div>
+            <div id="chatBox" class="chat-box mb-3">
+              <!-- Mensagens serão inseridas aqui -->
+            </div>
+
+            <div class="input-group">
+              <input id="chatInput" type="text" class="form-control" placeholder="Escreva sua pergunta... (ex.: 'Pedidos atrasados de agosto')" />
+              <button id="btnSendChat" class="btn btn-primary">
+                <i class="fas fa-paper-plane me-1"></i> Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- =================================================== -->
+
+    </main>
   </div>
-  <!-- Modal de imagem -->
+</div>
 
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script>
-    async function carregarQuantidadePedidos() {
-      const usuario = sessionStorage.getItem('usuario');
-      const senha = sessionStorage.getItem('senha');
-      const codparc = sessionStorage.getItem("codparc");
+<script>
+  // ===== Helpers de navegação (Painel <-> Chat) =====
+  const secDashboard = document.getElementById('sec-dashboard');
+  const secChat = document.getElementById('sec-chat-ia');
+  const tabDashboard = document.getElementById('tab-dashboard');
+  const tabChat = document.getElementById('tab-chat');
 
-      if (!usuario || !senha || !codparc) {
-        alert("Credenciais ausentes. Faça login novamente.");
-        window.location.href = "/pages/login.html";
-        return;
-      }
+  function setActiveMenu(el) {
+    document.querySelectorAll('.sidebar .nav-link').forEach(a => a.classList.remove('active'));
+    el?.classList.add('active');
+  }
+  function showDashboard() {
+    secDashboard.classList.remove('d-none');
+    secChat.classList.add('d-none');
+    setActiveMenu(tabDashboard);
+  }
+  function showChat() {
+    secDashboard.classList.add('d-none');
+    secChat.classList.remove('d-none');
+    setActiveMenu(tabChat);
+  }
+  tabDashboard?.addEventListener('click', (e) => { e.preventDefault(); showDashboard(); });
+  tabChat?.addEventListener('click', (e) => { e.preventDefault(); showChat(); });
 
-      try {
-        const response = await fetch(`http://sankhya.nxboats.com.br:3000/api/pedidos-mes?usuario=${usuario}&senha=${senha}&codparc=${codparc}`);
-        const data = await response.json();
+  // ===== Logout =====
+  document.getElementById("logoutBtnSidebar")?.addEventListener("click", () => {
+    sessionStorage.clear();
+    window.location.href = "/pages/login.html";
+  });
 
-        if (data.quantidade !== undefined) {
-          document.getElementById("card-pedidos-mes").innerText = data.quantidade;
-        } else {
-          throw new Error("Dados inválidos");
-        }
+  // ===== Cards & Gráficos (mesmas funções, endpoints relativos) =====
+  async function carregarQuantidadePedidos() {
+    const usuario = sessionStorage.getItem('usuario');
+    const senha = sessionStorage.getItem('senha');
+    const codparc = sessionStorage.getItem("codparc");
+    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
 
-      } catch (err) {
-        console.error("Erro ao carregar pedidos do mês:", err.message);
-      }
+    try {
+      const response = await fetch(`/api/pedidos-mes?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      document.getElementById("card-pedidos-mes").innerText = data?.quantidade ?? '-';
+    } catch (err) {
+      console.error("Erro ao carregar pedidos do mês:", err.message);
     }
-    document.addEventListener("DOMContentLoaded", () => {
-      carregarQuantidadePedidos();
-    });
+  }
 
-    async function carregarQuantidadeAtrasados() {
-      const usuario = sessionStorage.getItem('usuario');
-      const senha = sessionStorage.getItem('senha');
-      const codparc = sessionStorage.getItem("codparc");
+  async function carregarQuantidadeAtrasados() {
+    const usuario = sessionStorage.getItem('usuario');
+    const senha = sessionStorage.getItem('senha');
+    const codparc = sessionStorage.getItem("codparc");
+    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
 
-      if (!usuario || !senha || !codparc) {
-        alert("Credenciais ausentes. Faça login novamente.");
-        window.location.href = "/pages/login.html";
-        return;
-      }
-
-      try {
-        const response = await fetch(`http://sankhya.nxboats.com.br:3000/api/pedidos-atrasados?usuario=${usuario}&senha=${senha}&codparc=${codparc}`);
-        const data = await response.json();
-
-        if (data.quantidade !== undefined) {
-          document.getElementById("card-pedidos-atrasados").innerText = data.quantidade;
-        } else {
-          throw new Error("Dados inválidos");
-        }
-
-      } catch (err) {
-        console.error("Erro ao carregar pedidos do atrasados:", err.message);
-      }
+    try {
+      const response = await fetch(`/api/pedidos-atrasados?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      document.getElementById("card-pedidos-atrasados").innerText = data?.quantidade ?? '-';
+    } catch (err) {
+      console.error("Erro ao carregar pedidos atrasados:", err.message);
     }
-    document.addEventListener("DOMContentLoaded", () => {
-      carregarQuantidadeAtrasados();
-    });
+  }
 
-    async function carregarQuantidadePrazo() {
-      const usuario = sessionStorage.getItem('usuario');
-      const senha = sessionStorage.getItem('senha');
-      const codparc = sessionStorage.getItem("codparc");
+  async function carregarQuantidadePrazo() {
+    const usuario = sessionStorage.getItem('usuario');
+    const senha = sessionStorage.getItem('senha');
+    const codparc = sessionStorage.getItem("codparc");
+    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
 
-      if (!usuario || !senha || !codparc) {
-        alert("Credenciais ausentes. Faça login novamente.");
-        window.location.href = "/pages/login.html";
-        return;
-      }
-
-      try {
-        const response = await fetch(`http://sankhya.nxboats.com.br:3000/api/pedidos-prazo?usuario=${usuario}&senha=${senha}&codparc=${codparc}`);
-        const data = await response.json();
-
-        if (data.quantidade !== undefined) {
-          document.getElementById("card-pedidos-prazo").innerText = data.quantidade;
-        } else {
-          throw new Error("Dados inválidos");
-        }
-
-      } catch (err) {
-        console.error("Erro ao carregar pedidos no prazo:", err.message);
-      }
+    try {
+      const response = await fetch(`/api/pedidos-prazo?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      document.getElementById("card-pedidos-prazo").innerText = data?.quantidade ?? '-';
+    } catch (err) {
+      console.error("Erro ao carregar pedidos no prazo:", err.message);
     }
-    document.addEventListener("DOMContentLoaded", () => {
-      carregarQuantidadePrazo();
-    });
+  }
 
-    async function carregarQuantidadeVencer() {
-      const usuario = sessionStorage.getItem('usuario');
-      const senha = sessionStorage.getItem('senha');
-      const codparc = sessionStorage.getItem("codparc");
+  async function carregarQuantidadeVencer() {
+    const usuario = sessionStorage.getItem('usuario');
+    const senha = sessionStorage.getItem('senha');
+    const codparc = sessionStorage.getItem("codparc");
+    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
 
-      if (!usuario || !senha || !codparc) {
-        alert("Credenciais ausentes. Faça login novamente.");
-        window.location.href = "/pages/login.html";
-        return;
-      }
-
-      try {
-        const response = await fetch(`http://sankhya.nxboats.com.br:3000/api/pedidos-vencer?usuario=${usuario}&senha=${senha}&codparc=${codparc}`);
-        const data = await response.json();
-
-        if (data.quantidade !== undefined) {
-          document.getElementById("card-pedidos-vencer").innerText = data.quantidade;
-        } else {
-          throw new Error("Dados inválidos");
-        }
-
-      } catch (err) {
-        console.error("Erro ao carregar pedidos a vencer:", err.message);
-      }
+    try {
+      const response = await fetch(`/api/pedidos-vencer?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      document.getElementById("card-pedidos-vencer").innerText = data?.quantidade ?? '-';
+    } catch (err) {
+      console.error("Erro ao carregar pedidos a vencer:", err.message);
     }
-    document.addEventListener("DOMContentLoaded", () => {
-      carregarQuantidadeVencer();
-    });
+  }
 
-    function renderGraficoVendas(idCanvas, dados) {
-      const ctx = document.getElementById(idCanvas).getContext('2d');
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: dados.map(d => d.mes), // Agora em MM/YYYY
-          datasets: [{
-            label: 'Vendas por Mês',
-            data: dados.map(d => d.valor),
-            borderWidth: 2,
-            fill: false,
-            tension: 0.3,
-            pointRadius: 4
-          }]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: value => `R$ ${value}`
-              }
-            }
+  function renderGraficoVendas(idCanvas, dados) {
+    const ctx = document.getElementById(idCanvas).getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dados.map(d => d.mes),
+        datasets: [{
+          label: 'Vendas por Mês',
+          data: dados.map(d => d.valor),
+          borderWidth: 2,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 4
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { callback: value => `R$ ${value}` }
           }
         }
-      });
-    }
-
-    async function carregarGraficoVendas() {
-      const usuario = sessionStorage.getItem('usuario');
-      const senha = sessionStorage.getItem('senha');
-      const codparc = sessionStorage.getItem("codparc");
-
-      if (!usuario || !senha || !codparc) {
-        alert("Credenciais ausentes. Faça login novamente.");
-        window.location.href = "/pages/login.html";
-        return;
       }
-
-      try {
-        const response = await fetch("http://sankhya.nxboats.com.br:3000/api/grafico-vendas", {
-          method: "POST",
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ usuario, senha, codparc })
-        });
-
-        const dados = await response.json();
-
-        if (!Array.isArray(dados)) throw new Error("Resposta inválida");
-
-        renderGraficoVendas("grafico1", dados);
-
-      } catch (err) {
-        console.error("Erro ao carregar gráfico de vendas:", err.message);
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      carregarGraficoVendas();
     });
+  }
 
-    async function carregarPedidosPorMes() {
-      const usuario = sessionStorage.getItem('usuario');
-      const senha = sessionStorage.getItem('senha');
-      const codparc = sessionStorage.getItem("codparc");
+  async function carregarGraficoVendas() {
+    const usuario = sessionStorage.getItem('usuario');
+    const senha = sessionStorage.getItem('senha');
+    const codparc = sessionStorage.getItem("codparc");
+    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
 
-      if (!usuario || !senha || !codparc) return;
-
-      try {
-        const response = await fetch(`http://sankhya.nxboats.com.br:3000/api/pedidos-por-mes?usuario=${usuario}&senha=${senha}&codparc=${codparc}`);
-        const data = await response.json();
-        renderGraficoPedidos("grafico2", data);
-      } catch (err) {
-        console.error("Erro ao carregar gráfico de pedidos por mês:", err);
-      }
+    try {
+      const response = await fetch("/api/grafico-vendas", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario, senha, codparc })
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const dados = await response.json();
+      renderGraficoVendas("grafico1", dados);
+    } catch (err) {
+      console.error("Erro ao carregar gráfico de vendas:", err.message);
     }
+  }
 
-    function renderGraficoPedidos(idCanvas, dados) {
-      const ctx = document.getElementById(idCanvas).getContext("2d");
-
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: dados.map(d => d.mes),
-          datasets: [{
-            label: "Pedidos Emitidos",
-            data: dados.map(d => d.valor),
-            borderColor: "#28a745",
-            backgroundColor: "rgba(25,135,84,0.1)",
-            borderWidth: 2,
-            tension: 0.4,
-            pointRadius: 4
-          }]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: value => `${value} pedidos`
-              }
-            }
+  function renderGraficoPedidos(idCanvas, dados) {
+    const ctx = document.getElementById(idCanvas).getContext("2d");
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: dados.map(d => d.mes),
+        datasets: [{
+          label: "Pedidos Emitidos",
+          data: dados.map(d => d.valor),
+          borderColor: "#28a745",
+          backgroundColor: "rgba(25,135,84,0.1)",
+          borderWidth: 2,
+          tension: 0.4,
+          pointRadius: 4
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { callback: value => `${value} pedidos` }
           }
         }
-      });
+      }
+    });
+  }
+
+  async function carregarPedidosPorMes() {
+    const usuario = sessionStorage.getItem('usuario');
+    const senha = sessionStorage.getItem('senha');
+    const codparc = sessionStorage.getItem("codparc");
+    if (!usuario || !senha || !codparc) return;
+
+    try {
+      const response = await fetch(`/api/pedidos-por-mes?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      renderGraficoPedidos("grafico2", data);
+    } catch (err) {
+      console.error("Erro ao carregar gráfico de pedidos por mês:", err);
+    }
+  }
+
+  function renderDoughnutChart(idCanvas, labels, data, colors) {
+    const ctx = document.getElementById(idCanvas).getContext('2d');
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 1 }] },
+      options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+ // ====== CHAT (agora usando Gemini no backend) ======
+// ====== CHAT (Gemini + Ações Inteligentes) ======
+const chatBox   = document.getElementById('chatBox');
+const chatInput = document.getElementById('chatInput');
+const btnSend   = document.getElementById('btnSendChat');
+const chatHistory = [];
+
+function appendMsg(role, html) {
+  const row = document.createElement('div');
+  row.className = role === 'user' ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2';
+  const bubble = document.createElement('div');
+  bubble.className = `bubble ${role === 'user' ? 'bubble-user' : 'bubble-ai'}`;
+  if (typeof html === 'string') bubble.textContent = html;
+  else bubble.appendChild(html); // permite DOM/table
+  row.appendChild(bubble);
+  chatBox.appendChild(row);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function tableFromData(data) {
+  const table = document.createElement('table');
+  table.className = 'table table-sm table-striped mb-0';
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  (data.columns || []).forEach(c => {
+    const th = document.createElement('th');
+    th.textContent = c;
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+  const tbody = document.createElement('tbody');
+  (data.rows || []).forEach(r => {
+    const tr = document.createElement('tr');
+    r.forEach(cell => {
+      const td = document.createElement('td');
+      td.textContent = cell;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  return table;
+}
+
+function seriesToSmallList(series) {
+  const wrap = document.createElement('div');
+  const ul = document.createElement('ul');
+  ul.className = 'mb-0';
+  (series || []).forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = `${p.mes}: ${p.valor}`;
+    ul.appendChild(li);
+  });
+  wrap.appendChild(ul);
+  return wrap;
+}
+
+async function sendChat() {
+  const msg = (chatInput.value || '').trim();
+  if (!msg) return;
+
+  const usuario = sessionStorage.getItem('usuario');
+  const senha   = sessionStorage.getItem('senha');
+  const codparc = sessionStorage.getItem('codparc');
+
+  appendMsg('user', msg);
+  chatHistory.push({ role: 'user', content: msg });
+  chatInput.value = '';
+
+  appendMsg('assistant', 'Digitando…');
+
+  try {
+    const resp = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, usuario, senha, codparc, history: chatHistory.slice(-8) })
+    });
+
+    // remove "Digitando…"
+    chatBox.lastChild?.remove();
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      appendMsg('assistant', `Erro: ${text.slice(0,200)}`);
+      return;
     }
 
-    function renderDoughnutChart(idCanvas, labels, data, colors) {
-      const ctx = document.getElementById(idCanvas).getContext('2d');
-      new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: data,
-            backgroundColor: colors,
-            borderWidth: 1
-          }]
-        },
-        options: {
-          maintainAspectRatio: false, // << ALTERADO
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'bottom'
-            }
+    const data = await resp.json();
+    const reply = data.reply || 'Sem resposta no momento.';
+    appendMsg('assistant', reply);
+    chatHistory.push({ role: 'assistant', content: reply });
+
+    // Se vier uma tabela, renderiza
+    if (data?.data?.table) {
+      const table = tableFromData(data.data.table);
+      appendMsg('assistant', table);
+    }
+    // Se vier uma série, mostra lista simples (ou você pode plotar no Chart.js)
+    if (data?.data?.series) {
+      const s = seriesToSmallList(data.data.series);
+      appendMsg('assistant', s);
+    }
+
+    // Se for ação que exige confirmação (ex.: editar/imprimir)
+    if (data?.confirmationRequired && data?.action) {
+      const ok = confirm(reply + "\n\nConfirmar?");
+      if (ok) {
+        if (data.action.type === 'editar_pedido') {
+          // chama sua rota existente
+          const r2 = await fetch('/api/editar-pedido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              usuario, senha,
+              nunota: data.action.nunota,
+              novaDataEntrega: (data.action.novaDataEntrega || '').split('/').reverse().join('-'), // DD/MM/YYYY -> YYYY-MM-DD
+              novaObs: `Ajuste via chat em ${new Date().toLocaleString('pt-BR')}`
+            })
+          });
+          appendMsg('assistant', r2.ok ? 'Pedido atualizado com sucesso.' : 'Falha ao atualizar o pedido.');
+        }
+        if (data.action.type === 'imprimir_pedido') {
+          // baixa o PDF
+          const r3 = await fetch('/api/imprimir-pedido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario, senha, nunota: data.action.nunota })
+          });
+          if (r3.ok) {
+            const blob = await r3.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `pedido_${data.action.nunota}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+            appendMsg('assistant', 'PDF gerado e baixado.');
+          } else {
+            appendMsg('assistant', 'Falha ao gerar o PDF.');
           }
         }
-      });
+      } else {
+        appendMsg('assistant', 'Ok, ação cancelada.');
+      }
     }
+  } catch (err) {
+    // remove "Digitando…" se ainda existir
+    chatBox.lastChild?.remove?.();
+    appendMsg('assistant', `Falha ao contatar IA: ${err.message}`);
+  }
+}
 
-    document.addEventListener("DOMContentLoaded", () => {
-      // MOCK - Distribuição por Status
-      renderDoughnutChart("grafico3",
-        ["Resolvido", "Pendente"],
-        [12, 28],
-        ["#0d6efd", "#20c997"]
-      );
-    });
-
-    document.addEventListener("DOMContentLoaded", () => {
-      carregarPedidosPorMes();
-    });
-
-    document.getElementById("logoutBtnSidebar")?.addEventListener("click", () => {
-      sessionStorage.clear();
-      window.location.href = "/pages/login.html";
-    });
-  </script>
+btnSend?.addEventListener('click', sendChat);
+chatInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  // ===== Inicialização (carrega dados do dashboard ao abrir) =====
+  document.addEventListener("DOMContentLoaded", () => {
+    carregarQuantidadePedidos();
+    carregarQuantidadeAtrasados();
+    carregarQuantidadePrazo();
+    carregarQuantidadeVencer();
+    carregarGraficoVendas();
+    carregarPedidosPorMes();
+    // Gráfico donut (mock)
+    renderDoughnutChart("grafico3", ["Resolvido", "Pendente"], [12, 28], ["#0d6efd", "#20c997"]);
+  });
+</script>
+
 </body>
-
 </html>

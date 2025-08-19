@@ -264,7 +264,7 @@
             }
 
             try {
-                const res = await fetch('http://sankhya.nxboats.com.br:3000/api/pedidos', {
+                const res = await fetch('http://localhost:3000/api/pedidos', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ usuario, senha, codparc })
@@ -294,7 +294,7 @@
             }
 
             try {
-                const res = await fetch(`http://sankhya.nxboats.com.br:3000/api/produtos-por-pedido?usuario=${usuario}&senha=${senha}&nunota=${nunota}`);
+                const res = await fetch(`http://localhost:3000/api/produtos-por-pedido?usuario=${usuario}&senha=${senha}&nunota=${nunota}`);
 
                 const text = await res.text(); // Pegamos como texto para validar manualmente
                 if (!res.ok) {
@@ -333,7 +333,7 @@
             const senha = sessionStorage.getItem("senha");
 
             try {
-                const res = await fetch("http://sankhya.nxboats.com.br:3000/api/imprimir-pedido", {
+                const res = await fetch("http://localhost:3000/api/imprimir-pedido", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ nunota, usuario, senha })
@@ -447,7 +447,7 @@
                 const usuario = sessionStorage.getItem("usuario");
                 const senha = sessionStorage.getItem("senha");
 
-                const res = await fetch("http://sankhya.nxboats.com.br:3000/api/editar-pedido", {
+                const res = await fetch("http://localhost:3000/api/editar-pedido", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
