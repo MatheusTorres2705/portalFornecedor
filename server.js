@@ -47,7 +47,7 @@ app.post('/api/login', async (req, res) => {
         const consultaCodparc = await axios.post(`${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`, {
             serviceName: "DbExplorerSP.executeQuery",
             requestBody: {
-                sql: `SELECT CODPARC FROM TSIUSU WHERE NOMEUSU = UPPER('${usuario}')`,
+                sql: `SELECT CODVEND as CODPARC FROM TSIUSU WHERE NOMEUSU = UPPER('${usuario}')`,
                 outputType: "json"
             }
         }, {
@@ -710,7 +710,7 @@ app.get('/api/pedidos-mes', async (req, res) => {
             SELECT COUNT(CAB.NUNOTA) AS QTD
             FROM TGFCAB CAB
             LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODPARC = ${codparc}
+            WHERE PAR.CODVEND = ${codparc}
               AND TO_CHAR(DTNEG, 'MM/YYYY') = TO_CHAR(SYSDATE,'MM/YYYY')
         `;
 
@@ -766,11 +766,14 @@ app.get('/api/pedidos-atrasados', async (req, res) => {
         const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
 
         const sql = `
+             
             SELECT 
                 COUNT(DISTINCT CAB.NUNOTA) AS QTD
             FROM TGFCAB CAB
             LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODPARC = ${codparc} 
+            WHERE PAR.CODVEND = ${codparc} 
+            AND CAB.PENDENTE = 'S'
+            AND CAB.TIPMOV = 'O'
             AND (CAB.DTPREVENT < SYSDATE OR CAB.DTPREVENT IS NULL)
         `;
 
@@ -830,7 +833,7 @@ app.get('/api/pedidos-prazo', async (req, res) => {
                 COUNT(DISTINCT CAB.NUNOTA) AS QTD
             FROM TGFCAB CAB
             LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODPARC = ${codparc} 
+            WHERE PAR.CODVEND = ${codparc} 
             AND (CAB.DTPREVENT >= SYSDATE)
         `;
 
@@ -890,7 +893,7 @@ app.get('/api/pedidos-vencer', async (req, res) => {
                 COUNT(DISTINCT CAB.NUNOTA) AS QTD
             FROM TGFCAB CAB
             LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODPARC = ${codparc} 
+            WHERE PAR.CODVEND = ${codparc} 
             AND (CAB.DTPREVENT >= SYSDATE-10)
         `;
 
@@ -955,7 +958,7 @@ app.post('/api/grafico-vendas', async (req, res) => {
         WHERE CAB.TIPMOV = 'O'
           AND CAB.STATUSNOTA = 'L'
           AND CAB.DTNEG > TRUNC(SYSDATE - 365)
-          AND PAR.CODPARC = ${codparc}
+          AND PAR.CODVEND = ${codparc}
         GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
         ORDER BY TRUNC(CAB.DTNEG, 'MM')
       `;
@@ -1004,7 +1007,7 @@ app.get("/api/pedidos-por-mes", async (req, res) => {
         WHERE CAB.TIPMOV = 'O'
           AND CAB.STATUSNOTA = 'L'
           AND CAB.DTNEG > TRUNC(SYSDATE - 365)
-          AND PAR.CODPARC = ${codparc}
+          AND PAR.CODVEND = ${codparc}
         GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
         ORDER BY TRUNC(CAB.DTNEG, 'MM')
       `;
@@ -1142,7 +1145,7 @@ app.post('/api/financeiro', async (req, res) => {
             FROM TGFFIN FIN
             INNER JOIN TGFPAR PAR ON PAR.CODPARC = FIN.CODPARC
             LEFT JOIN TGFTIT TIT ON TIT.CODTIPTIT = FIN.CODTIPTIT
-            WHERE PAR.CODPARC = ${codparc}
+            WHERE PAR.CODVEND = ${codparc}
             AND FIN.CODTIPTIT <> 29
             ORDER BY FIN.DTVENC DESC
         `;
@@ -1376,7 +1379,7 @@ app.post('/api/conta', async (req, res) => {
                 LEFT JOIN TSIBAI BAI ON BAI.CODBAI = PAR.CODBAI
                 LEFT JOIN TSICID CID ON CID.CODCID = PAR.CODCID
                 LEFT JOIN TSIUFS UFS ON UFS.CODUF = PAR.AD_CODUFVENDA
-            WHERE PAR.CODPARC = ${codparc}
+            WHERE PAR.CODVEND = ${codparc}
         `;
 
         const consulta = {
@@ -1455,7 +1458,7 @@ app.post('/api/contatos', async (req, res) => {
             FROM
                 TGFPAR PAR
                 LEFT JOIN TGFCTT CTT ON (CTT.CODPARC = PAR.CODPARC)
-            WHERE PAR.CODPARC = ${codparc}
+            WHERE PAR.CODVEND = ${codparc}
               AND NVL(CTT.NOMECONTATO, ' ') <> ' '
               AND NVL(CTT.EMAIL, ' ') <> ' '
         `;
