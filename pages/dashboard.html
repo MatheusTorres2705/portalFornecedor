@@ -1,627 +1,526 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Portal Fornecedor</title>
+  <title>Painel do Comprador · NX Boats</title>
 
   <!-- Bootstrap & Icons -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
 
-  <!-- Charts (mantidos) -->
-  <script src="https://cdn.jsdelivr.net/npm/colorjs.io/dist/color.global.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <link rel="stylesheet" href="/style/dashboard.css"/>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <style>
-    /* Estilo leve para os balões do chat */
-    .chat-box {
-      height: 380px;
-      overflow-y: auto;
-      background: #fafafa;
-      border: 1px solid #e9ecef;
-      border-radius: .5rem;
-      padding: 1rem;
+    body{background:linear-gradient(180deg,#fff, #f7f7f8);}
+    .app-header{backdrop-filter:saturate(120%) blur(6px);}
+    .kpi .icon{
+      width:36px;height:36px;border-radius:.75rem;
+      display:flex;align-items:center;justify-content:center;
     }
-    .bubble {
-      max-width: 75%;
-      padding: .5rem .75rem;
-      border-radius: .75rem;
-      word-wrap: break-word;
-      white-space: pre-wrap;
-    }
-    .bubble-user {
-      background: #0d6efd;
-      color: #fff;
-    }
-    .bubble-ai {
-      background: #f1f3f5;
-      color: #212529;
-    }
-    .sidebar .nav-link.active {
-      background: rgba(13,110,253,.1);
-      border-radius: .5rem;
-      font-weight: 600;
-    }
+    .table thead th{font-weight:600;}
+    /* Chat */
+    .chat-box{height:58vh; overflow-y:auto; background:#fafafa; border:1px solid #e9ecef; border-radius:.75rem; padding:1rem;}
+    .bubble{max-width:75%; padding:.5rem .75rem; border-radius:.75rem; word-wrap:break-word; white-space:pre-wrap;}
+    .bubble-user{background:#0d6efd;color:#fff;}
+    .bubble-ai{background:#f1f3f5;color:#212529;}
+    .nav-tabs .nav-link{border:0;}
+    .nav-tabs .nav-link.active{border-bottom:2px solid #0d6efd; font-weight:600;}
+    .card-radius{border-radius:1rem;}
   </style>
 </head>
-
 <body>
-<div class="container-fluid">
-  <div class="row">
-    <!-- Sidebar -->
-    <nav class="col-md-2 d-none d-md-block sidebar">
-      <div class="position-sticky">
-        <div class="text-center py-3">
-          <img src="https://nxboats.com.br/wp-content/uploads/2022/07/nx-boats-noticia-empreendedorismo-logo-nx.png" class="img-fluid" alt="Logo"/>
-          <h6 class="mt-5">Menu</h6>
+
+<!-- ========================= HEADER ========================= -->
+<header class="app-header border-bottom bg-white sticky-top">
+  <div class="container-xxl py-3 d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-circle bg-dark" style="width:32px;height:32px"></div>
+      <h1 class="h5 m-0 fw-semibold">NX Boats · Painel do Comprador</h1>
+    </div>
+    <span class="badge text-bg-secondary">Mockup visual</span>
+  </div>
+</header>
+
+<!-- ========================= TABS =========================== -->
+<div class="container-xxl mt-3">
+  <ul class="nav nav-tabs gap-2" id="mainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-home" data-bs-toggle="tab" data-bs-target="#pane-home" type="button" role="tab">
+        <i class="fa-solid fa-table-columns me-2"></i>Início
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-pedidos" data-bs-toggle="tab" data-bs-target="#pane-pedidos" type="button" role="tab">
+        <i class="fa-solid fa-cart-shopping me-2"></i>Produtos Criticos
+      </button>
+    </li>
+     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-pedidos" data-bs-toggle="tab" data-bs-target="#pane-pedidos" type="button" role="tab">
+        <i class="fa-solid fa-cart-shopping me-2"></i>Pedidos
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-chat" data-bs-toggle="tab" data-bs-target="#pane-chat" type="button" role="tab">
+        <i class="fa-solid fa-comments me-2"></i>Chat IA
+      </button>
+    </li>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <label class="form-label m-0 small text-muted">Comprador</label>
+      <input id="compradorInput" class="form-control form-control-sm" style="width:120px" placeholder="Ex.: CARLA" value="CARLA">
+      <button id="aplicarComprador" class="btn btn-sm btn-outline-secondary">Aplicar</button>
+      <button id="btnRefresh" class="btn btn-sm btn-primary"><i class="fa-solid fa-rotate me-1"></i>Atualizar</button>
+    </div>
+  </ul>
+</div>
+
+<div class="container-xxl tab-content mt-4">
+
+  <!-- ========================= HOME ========================= -->
+  <div class="tab-pane fade show active" id="pane-home" role="tabpanel" aria-labelledby="tab-home">
+    <!-- KPIs -->
+    <div class="row g-3">
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Itens críticos</div>
+              <div id="kpi-itens-criticos" class="h4 m-0">—</div>
+              <div class="small text-muted">Estoque abaixo da cobertura</div>
+            </div>
+            <div class="icon bg-warning-subtle text-warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          </div>
         </div>
-        <ul class="nav flex-column px-2">
-          <li class="nav-item"><a href="#" class="nav-link active" id="tab-dashboard"><i class="fas fa-tv me-2"></i>Painel</a></li>
-          <li class="nav-item"><a href="#" class="nav-link" id="tab-chat"><i class="fas fa-comments me-2"></i>Chat IA</a></li>
-
-          <li class="nav-item mt-4"><a href="/pages/pedidos.html" class="nav-link"><i class="fas fa-truck me-2"></i>Pedidos</a></li>
-          <li class="nav-item"><a href="/pages/produtos.html" class="nav-link"><i class="fas fa-cube me-2"></i>Produtos</a></li>
-          <li class="nav-item"><a href="/pages/finaceiro.html" class="nav-link"><i class="fas fa-sack-dollar me-2"></i>Lista de Falta</a></li>
-
-          <li class="nav-item mt-5 m-3"><strong>Informações</strong></li>
-          <li class="nav-item"><a href="/pages/conta.html" class="nav-link"><i class="fas fa-user me-2"></i>Conta</a></li>
-          <li class="nav-item"><a href="#" class="nav-link" id="logoutBtnSidebar"><i class="fas fa-sign-in-alt me-2"></i>Sair</a></li>
-        </ul>
       </div>
-    </nav>
-
-    <!-- Main -->
-    <main class="col-md-10 ms-sm-auto col-lg-10 px-md-4">
-      <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h4">Painel de Compras</h1>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Pedidos pendentes</div>
+              <div id="kpi-pedidos-pendentes" class="h4 m-0">—</div>
+              <div class="small text-muted">Aguardando entrega</div>
+            </div>
+            <div class="icon bg-primary-subtle text-primary"><i class="fa-solid fa-cart-flatbed"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Cotações abertas</div>
+              <div id="kpi-cotacoes" class="h4 m-0">—</div>
+              <div class="small text-muted">Responder hoje</div>
+            </div>
+            <div class="icon bg-secondary-subtle text-secondary"><i class="fa-solid fa-list-check"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Gastos do mês</div>
+              <div id="kpi-gastos" class="h4 m-0">—</div>
+              <div class="small text-muted">Capex + Opex</div>
+            </div>
+            <div class="icon bg-success-subtle text-success"><i class="fa-solid fa-dollar-sign"></i></div>
+          </div>
+        </div>
       </div>
 
-      <!-- ===================== DASHBOARD ===================== -->
-      <section id="sec-dashboard">
-        <!-- Cards -->
-        <div class="row g-3">
-          <div class="col-md-3">
-            <div class="card shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <p class="mb-1 text-uppercase fw-semibold">Novos</p>
-                    <h5 id="card-pedidos-mes">-</h5>
-                  </div>
-                  <div class="bg-primary text-white card-icon">
-                    <i class="fas fa-bell"></i>
-                  </div>
-                </div>
-              </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Savings do mês</div>
+              <div id="kpi-savings" class="h4 m-0">—</div>
             </div>
-          </div>
-
-          <div class="col-md-3">
-            <div class="card shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <p class="mb-1 text-uppercase fw-semibold">Atrasados</p>
-                    <h5 id="card-pedidos-atrasados">-</h5>
-                  </div>
-                  <div class="bg-danger text-white card-icon">
-                    <i class="fas fa-circle-exclamation"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-3">
-            <div class="card shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <p class="mb-1 text-uppercase fw-semibold">No Prazo</p>
-                    <h5 id="card-pedidos-prazo">-</h5>
-                  </div>
-                  <div class="bg-success text-white card-icon">
-                    <i class="fas fa-cart-shopping"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-3">
-            <div class="card shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <p class="mb-1 text-uppercase fw-semibold">A Vencer</p>
-                    <h5 id="card-pedidos-vencer">-</h5>
-                  </div>
-                  <div class="bg-warning text-white card-icon">
-                    <i class="fas fa-triangle-exclamation"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div class="icon bg-success-subtle text-success"><i class="fa-solid fa-piggy-bank"></i></div>
           </div>
         </div>
-
-        <!-- Gráficos -->
-        <div class="row mt-4">
-          <div class="col-md-6">
-            <div class="card shadow-sm p-3">
-              <div class="card-body">
-                <h6 class="card-title text-center text-primary fw-bold mb-3">Vendas Mensais R$</h6>
-                <canvas id="grafico1" height="200"></canvas>
-              </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Prazo médio</div>
+              <div id="kpi-prazo" class="h4 m-0">—</div>
             </div>
-          </div>
-
-          <div class="col-md-6">
-            <div class="card shadow-sm p-3">
-              <div class="card-body">
-                <h6 class="card-title text-center text-success fw-bold mb-3">Quantidade Pedidos Mensais</h6>
-                <canvas id="grafico2" height="200"></canvas>
-              </div>
-            </div>
+            <div class="icon bg-info-subtle text-info"><i class="fa-solid fa-calendar-check"></i></div>
           </div>
         </div>
-
-        <div class="row mt-4">
-          <div class="col-md-6">
-            <div class="card shadow-sm p-3">
-              <div class="card-body" style="height: 400px;">
-                <h6 class="card-title text-center text-primary fw-bold mb-3">Divergência de Portaria</h6>
-                <canvas id="grafico3" style="height: 250px !important;"></canvas>
-              </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Fill rate</div>
+              <div id="kpi-fillrate" class="h4 m-0">—</div>
             </div>
-          </div>
-
-          <div class="col-md-6">
-            <div class="card shadow-sm p-3">
-              <div class="card-body" style="height: 400px;">
-                <h6 class="card-title text-center text-primary fw-bold mb-3">Produtos mais vendidos</h6>
-                <table class="table align-middle">
-                  <thead class="table-light">
-                    <tr>
-                      <th scope="col">Imagem</th>
-                      <th scope="col">Produto</th>
-                      <th scope="col">Qtd</th>
-                      <th scope="col">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tabela-produtos">
-                    <tr>
-                      <td><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSol4AdgeQxS55Dga_nQUlO2buy2EuG-h6d1A&s" class="img-thumbnail" width="50" alt="Produto 1"></td>
-                      <td>Lancha NX340</td>
-                      <td>12</td>
-                      <td>R$ 1.200.000</td>
-                    </tr>
-                    <tr>
-                      <td><img src="https://static.wixstatic.com/media/615d1f_250fc32a09804797951a1e01257c50dc~mv2.png/v1/fill/w_280,h_181,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/615d1f_250fc32a09804797951a1e01257c50dc~mv2.png" class="img-thumbnail" width="50" alt="Produto 2"></td>
-                      <td>Jet Ski WaveX</td>
-                      <td>30</td>
-                      <td>R$ 45.000</td>
-                    </tr>
-                    <tr>
-                      <td><img src="https://oestemarine.com.br/wp-content/uploads/2023/11/barco-de-aluminio-1.jpg" class="img-thumbnail" width="50" alt="Produto 3"></td>
-                      <td>Barco Pesca Pro</td>
-                      <td>18</td>
-                      <td>R$ 320.000</td>
-                    </tr>
-                    <tr>
-                      <td><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_Bf24tKOznPE_mDfbXCqsFan3ApXrj0R2aw&s" class="img-thumbnail" width="50" alt="Produto 4"></td>
-                      <td>Lancha Esportiva LX</td>
-                      <td>8</td>
-                      <td>R$ 980.000</td>
-                    </tr>
-                    <tr>
-                      <td><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTzi7NB4MD9c3WEQ51B7MeQFt98P7p0JQNZfg&s" class="img-thumbnail" width="50" alt="Produto 5"></td>
-                      <td>Catamarã Oceanic</td>
-                      <td>4</td>
-                      <td>R$ 2.500.000</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <div class="icon bg-dark-subtle text-dark"><i class="fa-solid fa-gauge-simple-high"></i></div>
           </div>
         </div>
-      </section>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="card card-radius shadow-sm kpi">
+          <div class="card-body d-flex justify-content-between">
+            <div>
+              <div class="text-uppercase small text-muted fw-semibold">Atraso médio</div>
+              <div id="kpi-atraso" class="h4 m-0">—</div>
+            </div>
+            <div class="icon bg-danger-subtle text-danger"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <!-- ===================== CHAT IA ===================== -->
-      <section id="sec-chat-ia" class="d-none">
-        <div class="card shadow-sm mt-4">
+    <!-- Gráficos -->
+    <div class="row g-3 mt-1">
+      <div class="col-12 col-xl-6">
+        <div class="card card-radius shadow-sm">
           <div class="card-body">
-            <h6 class="card-title mb-3"><i class="fas fa-robot me-2"></i> Pergunte ao NXPilot </h6>
+            <h6 class="fw-semibold mb-3">Gastos por mês</h6>
+            <canvas id="chartGastos" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-6">
+        <div class="card card-radius shadow-sm">
+          <div class="card-body">
+            <h6 class="fw-semibold mb-3">Savings por mês</h6>
+            <canvas id="chartSavings" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-            <div id="chatBox" class="chat-box mb-3">
-              <!-- Mensagens serão inseridas aqui -->
-            </div>
+  <!-- ======================== PEDIDOS ======================= -->
+  <div class="tab-pane fade" id="pane-pedidos" role="tabpanel" aria-labelledby="tab-pedidos">
+    <div class="card card-radius shadow-sm">
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <div class="input-group" style="max-width:380px">
+            <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input id="buscaPedidos" class="form-control" placeholder="Buscar por nº, fornecedor ou CNPJ"/>
+          </div>
 
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+              <i class="fa-solid fa-filter me-1"></i>Status
+            </button>
+            <ul class="dropdown-menu" id="statusMenu">
+              <li><a class="dropdown-item active" data-status="TODOS" href="#">Todos</a></li>
+              <li><a class="dropdown-item" data-status="EM_ABERTO" href="#">Em aberto</a></li>
+              <li><a class="dropdown-item" data-status="ATRASADO" href="#">Atrasado</a></li>
+              <li><a class="dropdown-item" data-status="RECEBIDO" href="#">Recebido</a></li>
+            </ul>
+          </div>
+
+          <div class="ms-auto d-flex gap-2">
+            <button id="btnExport" class="btn btn-outline-secondary"><i class="fa-solid fa-file-arrow-down me-1"></i>Exportar CSV</button>
+          </div>
+        </div>
+
+        <div class="table-responsive mt-3">
+          <table class="table align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Pedido</th><th>Fornecedor</th><th>Emissão</th><th>Previsão</th><th class="text-end">Total</th><th>Status</th><th class="text-end">Atraso</th><th class="text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyPedidos"></tbody>
+          </table>
+        </div>
+
+        <div id="vazioPedidos" class="text-center text-muted small py-4 d-none">Nenhum pedido encontrado com os filtros atuais.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= CHAT ========================= -->
+  <div class="tab-pane fade" id="pane-chat" role="tabpanel" aria-labelledby="tab-chat">
+    <div class="row g-3">
+      <div class="col-12 col-xl-8">
+        <div class="card card-radius shadow-sm">
+          <div class="card-body">
+            <h6 class="fw-semibold mb-3"><i class="fa-solid fa-robot me-2"></i>Pergunte ao NXPilot</h6>
+            <div id="chatBox" class="chat-box mb-3"></div>
             <div class="input-group">
-              <input id="chatInput" type="text" class="form-control" placeholder="Escreva sua pergunta... (ex.: 'Pedidos atrasados de agosto')" />
-              <button id="btnSendChat" class="btn btn-primary">
-                <i class="fas fa-paper-plane me-1"></i> Enviar
-              </button>
+              <input id="chatInput" type="text" class="form-control" placeholder="Escreva sua pergunta… (ex.: 'Pedidos atrasados do meu portfólio')"/>
+              <button id="btnSendChat" class="btn btn-primary"><i class="fa-solid fa-paper-plane me-1"></i>Enviar</button>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+              <button class="btn btn-outline-secondary btn-sm suggestion">Listar pedidos atrasados do meu portfólio</button>
+              <button class="btn btn-outline-secondary btn-sm suggestion">Quais itens críticos vencem nesta semana?</button>
+              <button class="btn btn-outline-secondary btn-sm suggestion">Top 5 fornecedores por gasto e atraso</button>
+              <button class="btn btn-outline-secondary btn-sm suggestion">Oportunidades de savings por família</button>
             </div>
           </div>
         </div>
-      </section>
-      <!-- =================================================== -->
+      </div>
+      <div class="col-12 col-xl-4">
+        <div class="card card-radius shadow-sm">
+          <div class="card-body">
+            <h6 class="fw-semibold mb-3">Dicas rápidas</h6>
+            <ul class="small m-0">
+              <li>Use <strong>comprador=CARLA</strong> para filtrar seus dados.</li>
+              <li>Peça <em>“detalhar pedido #101567”</em> para abrir itens.</li>
+              <li>Fale <em>“alterar previsão para 10/09/2025 do #101234”</em> para receber confirmação.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    </main>
+</div>
+
+<!-- ======================= MODAL DETALHES =================== -->
+<div class="modal fade" id="modalDetalhes" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="detalhesTitulo">Pedido</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="detalhesBody"></div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-  // ===== Helpers de navegação (Painel <-> Chat) =====
-  const secDashboard = document.getElementById('sec-dashboard');
-  const secChat = document.getElementById('sec-chat-ia');
-  const tabDashboard = document.getElementById('tab-dashboard');
-  const tabChat = document.getElementById('tab-chat');
+/* ============================================================
+   MOCKS (substituir por chamadas reais ao backend / Sankhya)
+   ============================================================ */
+const MOCK_PEDIDOS = [
+  { nunota:101234, fornecedor:"Náutica Brava Ltda", cnpj:"12.345.678/0001-99", emissao:"2025-08-20", previsao:"2025-09-05", total:58230.45, status:"EM_ABERTO", top:"CP", comprador:"CARLA",
+    itens:[{cod:"PRO-001", desc:"Gelcoat Branco 18kg", qtd:12, un:"BAL", vlr:860, critico:true},{cod:"PRO-882", desc:"Fibra 450g/m² rolo", qtd:40, un:"ROL", vlr:210.5}]},
+  { nunota:101567, fornecedor:"Brasil Resinas", cnpj:"98.765.432/0001-77", emissao:"2025-08-10", previsao:"2025-08-22", total:32780, status:"ATRASADO", top:"CP", comprador:"CARLA",
+    itens:[{cod:"PRO-777", desc:"Resina Isophtálica 200kg", qtd:4, un:"TAM", vlr:4920, critico:true}]},
+  { nunota:101890, fornecedor:"Aços & Metais Nordeste", cnpj:"01.222.333/0001-55", emissao:"2025-08-18", previsao:"2025-08-29", total:9120.7, status:"RECEBIDO", top:"CP", comprador:"CARLA",
+    itens:[{cod:"PRO-900", desc:"Chapa Inox 304 1mm", qtd:30, un:"UN", vlr:210}]},
+  { nunota:102004, fornecedor:"Eletrônica Náutica Prime", cnpj:"45.987.111/0001-22", emissao:"2025-08-24", previsao:"2025-09-10", total:145230, status:"EM_ABERTO", top:"CP", comprador:"CARLA",
+    itens:[{cod:"PRO-120", desc:"GPS Chartplotter 9''", qtd:6, un:"UN", vlr:8200},{cod:"PRO-121", desc:"Sonda Transdutor", qtd:6, un:"UN", vlr:2100}]},
+];
 
-  function setActiveMenu(el) {
-    document.querySelectorAll('.sidebar .nav-link').forEach(a => a.classList.remove('active'));
-    el?.classList.add('active');
-  }
-  function showDashboard() {
-    secDashboard.classList.remove('d-none');
-    secChat.classList.add('d-none');
-    setActiveMenu(tabDashboard);
-  }
-  function showChat() {
-    secDashboard.classList.add('d-none');
-    secChat.classList.remove('d-none');
-    setActiveMenu(tabChat);
-  }
-  tabDashboard?.addEventListener('click', (e) => { e.preventDefault(); showDashboard(); });
-  tabChat?.addEventListener('click', (e) => { e.preventDefault(); showChat(); });
+const MOCK_KPIS = {
+  itensCriticos: 14, pedidosPendentes: 8, cotacoesAbertas: 5,
+  gastosMes: 482000, savingsMes: 32750, prazoMedioEntrega: 17.2, fillRate: 93.4, atrasosMediosDias: 4.1
+};
 
-  // ===== Logout =====
-  document.getElementById("logoutBtnSidebar")?.addEventListener("click", () => {
-    sessionStorage.clear();
-    window.location.href = "/pages/login.html";
-  });
+const MOCK_SERIES = Array.from({length:12}).map((_,i)=>({
+  mes: new Date(2025,i,1).toLocaleDateString('pt-BR',{month:'short'}),
+  valor: 200000 + Math.round(Math.random()*180000),
+  savings: 15000 + Math.round(Math.random()*25000),
+}));
 
-  // ===== Cards & Gráficos (mesmas funções, endpoints relativos) =====
-  async function carregarQuantidadePedidos() {
-    const usuario = sessionStorage.getItem('usuario');
-    const senha = sessionStorage.getItem('senha');
-    const codparc = sessionStorage.getItem("codparc");
-    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
+/* ========================== Utils ========================== */
+const fmtBRL = n => (isNaN(n)?'—': n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}));
+const dias = (a,b)=> Math.round(Math.abs(new Date(a)-new Date(b))/86400000);
 
-    try {
-      const response = await fetch(`/api/pedidos-mes?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      document.getElementById("card-pedidos-mes").innerText = data?.quantidade ?? '-';
-    } catch (err) {
-      console.error("Erro ao carregar pedidos do mês:", err.message);
-    }
-  }
+/* ========================== Estado ========================= */
+let COMPRADOR = localStorage.getItem('comprador') || 'CARLA';
+document.getElementById('compradorInput').value = COMPRADOR;
 
-  async function carregarQuantidadeAtrasados() {
-    const usuario = sessionStorage.getItem('usuario');
-    const senha = sessionStorage.getItem('senha');
-    const codparc = sessionStorage.getItem("codparc");
-    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
-
-    try {
-      const response = await fetch(`/api/pedidos-atrasados?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      document.getElementById("card-pedidos-atrasados").innerText = data?.quantidade ?? '-';
-    } catch (err) {
-      console.error("Erro ao carregar pedidos atrasados:", err.message);
-    }
-  }
-
-  async function carregarQuantidadePrazo() {
-    const usuario = sessionStorage.getItem('usuario');
-    const senha = sessionStorage.getItem('senha');
-    const codparc = sessionStorage.getItem("codparc");
-    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
-
-    try {
-      const response = await fetch(`/api/pedidos-prazo?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      document.getElementById("card-pedidos-prazo").innerText = data?.quantidade ?? '-';
-    } catch (err) {
-      console.error("Erro ao carregar pedidos no prazo:", err.message);
-    }
-  }
-
-  async function carregarQuantidadeVencer() {
-    const usuario = sessionStorage.getItem('usuario');
-    const senha = sessionStorage.getItem('senha');
-    const codparc = sessionStorage.getItem("codparc");
-    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
-
-    try {
-      const response = await fetch(`/api/pedidos-vencer?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      document.getElementById("card-pedidos-vencer").innerText = data?.quantidade ?? '-';
-    } catch (err) {
-      console.error("Erro ao carregar pedidos a vencer:", err.message);
-    }
-  }
-
-  function renderGraficoVendas(idCanvas, dados) {
-    const ctx = document.getElementById(idCanvas).getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: dados.map(d => d.mes),
-        datasets: [{
-          label: 'Vendas por Mês',
-          data: dados.map(d => d.valor),
-          borderWidth: 2,
-          fill: false,
-          tension: 0.3,
-          pointRadius: 4
-        }]
-      },
-      options: {
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { callback: value => `R$ ${value}` }
-          }
-        }
-      }
-    });
-  }
-
-  async function carregarGraficoVendas() {
-    const usuario = sessionStorage.getItem('usuario');
-    const senha = sessionStorage.getItem('senha');
-    const codparc = sessionStorage.getItem("codparc");
-    if (!usuario || !senha || !codparc) return (window.location.href = "/pages/login.html");
-
-    try {
-      const response = await fetch("/api/grafico-vendas", {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario, senha, codparc })
-      });
-      if (!response.ok) throw new Error(await response.text());
-      const dados = await response.json();
-      renderGraficoVendas("grafico1", dados);
-    } catch (err) {
-      console.error("Erro ao carregar gráfico de vendas:", err.message);
-    }
-  }
-
-  function renderGraficoPedidos(idCanvas, dados) {
-    const ctx = document.getElementById(idCanvas).getContext("2d");
-    new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: dados.map(d => d.mes),
-        datasets: [{
-          label: "Pedidos Emitidos",
-          data: dados.map(d => d.valor),
-          borderColor: "#28a745",
-          backgroundColor: "rgba(25,135,84,0.1)",
-          borderWidth: 2,
-          tension: 0.4,
-          pointRadius: 4
-        }]
-      },
-      options: {
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { callback: value => `${value} pedidos` }
-          }
-        }
-      }
-    });
-  }
-
-  async function carregarPedidosPorMes() {
-    const usuario = sessionStorage.getItem('usuario');
-    const senha = sessionStorage.getItem('senha');
-    const codparc = sessionStorage.getItem("codparc");
-    if (!usuario || !senha || !codparc) return;
-
-    try {
-      const response = await fetch(`/api/pedidos-por-mes?usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}&codparc=${encodeURIComponent(codparc)}`);
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      renderGraficoPedidos("grafico2", data);
-    } catch (err) {
-      console.error("Erro ao carregar gráfico de pedidos por mês:", err);
-    }
-  }
-
-  function renderDoughnutChart(idCanvas, labels, data, colors) {
-    const ctx = document.getElementById(idCanvas).getContext('2d');
-    new Chart(ctx, {
-      type: 'doughnut',
-      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 1 }] },
-      options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
-  }
-
- // ====== CHAT (agora usando Gemini no backend) ======
-// ====== CHAT (Gemini + Ações Inteligentes) ======
-const chatBox   = document.getElementById('chatBox');
-const chatInput = document.getElementById('chatInput');
-const btnSend   = document.getElementById('btnSendChat');
-const chatHistory = [];
-
-function appendMsg(role, html) {
-  const row = document.createElement('div');
-  row.className = role === 'user' ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2';
-  const bubble = document.createElement('div');
-  bubble.className = `bubble ${role === 'user' ? 'bubble-user' : 'bubble-ai'}`;
-  if (typeof html === 'string') bubble.textContent = html;
-  else bubble.appendChild(html); // permite DOM/table
-  row.appendChild(bubble);
-  chatBox.appendChild(row);
-  chatBox.scrollTop = chatBox.scrollHeight;
+/* ========================== KPIs =========================== */
+function preencherKPIs(k){
+  document.getElementById('kpi-itens-criticos').textContent = k.itensCriticos;
+  document.getElementById('kpi-pedidos-pendentes').textContent = k.pedidosPendentes;
+  document.getElementById('kpi-cotacoes').textContent = k.cotacoesAbertas;
+  document.getElementById('kpi-gastos').textContent = fmtBRL(k.gastosMes);
+  document.getElementById('kpi-savings').textContent = fmtBRL(k.savingsMes);
+  document.getElementById('kpi-prazo').textContent = `${k.prazoMedioEntrega} dias`;
+  document.getElementById('kpi-fillrate').textContent = `${k.fillRate.toFixed(1)}%`;
+  document.getElementById('kpi-atraso').textContent = `${k.atrasosMediosDias} dias`;
 }
 
-function tableFromData(data) {
-  const table = document.createElement('table');
-  table.className = 'table table-sm table-striped mb-0';
-  const thead = document.createElement('thead');
-  const trh = document.createElement('tr');
-  (data.columns || []).forEach(c => {
-    const th = document.createElement('th');
-    th.textContent = c;
-    trh.appendChild(th);
+/* ========================= Gráficos ======================== */
+let chartGastos, chartSavings;
+function renderCharts(series){
+  const ctx1=document.getElementById('chartGastos');
+  const ctx2=document.getElementById('chartSavings');
+
+  chartGastos?.destroy(); chartSavings?.destroy();
+
+  chartGastos=new Chart(ctx1,{type:'bar',
+    data:{labels:series.map(s=>s.mes),datasets:[{label:'Compras',data:series.map(s=>s.valor)}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'R$ '+v}}}}
   });
-  thead.appendChild(trh);
-  const tbody = document.createElement('tbody');
-  (data.rows || []).forEach(r => {
-    const tr = document.createElement('tr');
-    r.forEach(cell => {
-      const td = document.createElement('td');
-      td.textContent = cell;
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
+
+  chartSavings=new Chart(ctx2,{type:'line',
+    data:{labels:series.map(s=>s.mes),datasets:[{label:'Savings',data:series.map(s=>s.savings), tension:.35}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'R$ '+v}}}}
   });
-  table.appendChild(thead);
-  table.appendChild(tbody);
-  return table;
 }
 
-function seriesToSmallList(series) {
-  const wrap = document.createElement('div');
-  const ul = document.createElement('ul');
-  ul.className = 'mb-0';
-  (series || []).forEach(p => {
-    const li = document.createElement('li');
-    li.textContent = `${p.mes}: ${p.valor}`;
-    ul.appendChild(li);
-  });
-  wrap.appendChild(ul);
-  return wrap;
-}
+/* ========================= Pedidos ========================= */
+let STATUS_ATUAL='TODOS', BUSCA='';
+const tbodyPedidos=document.getElementById('tbodyPedidos');
+const vazioPedidos=document.getElementById('vazioPedidos');
 
-async function sendChat() {
-  const msg = (chatInput.value || '').trim();
-  if (!msg) return;
-
-  const usuario = sessionStorage.getItem('usuario');
-  const senha   = sessionStorage.getItem('senha');
-  const codparc = sessionStorage.getItem('codparc');
-
-  appendMsg('user', msg);
-  chatHistory.push({ role: 'user', content: msg });
-  chatInput.value = '';
-
-  appendMsg('assistant', 'Digitando…');
-
-  try {
-    const resp = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, usuario, senha, codparc, history: chatHistory.slice(-8) })
+function renderPedidos(){
+  const lista = MOCK_PEDIDOS
+    .filter(p => (COMPRADOR? p.comprador===COMPRADOR : true))
+    .filter(p => STATUS_ATUAL==='TODOS' ? true : p.status===STATUS_ATUAL)
+    .filter(p => {
+      const q=BUSCA.trim().toLowerCase();
+      if(!q) return true;
+      return String(p.nunota).includes(q) || p.fornecedor.toLowerCase().includes(q) || (p.cnpj||'').toLowerCase().includes(q);
     });
 
-    // remove "Digitando…"
-    chatBox.lastChild?.remove();
+  tbodyPedidos.innerHTML='';
+  lista.forEach(p=>{
+    const atraso = p.status==='ATRASADO' ? `<span class="text-danger fw-semibold">${dias(p.previsao, new Date())}d</span>` : '—';
+    const badge = p.status==='ATRASADO' ? 'bg-danger-subtle text-danger' : (p.status==='EM_ABERTO' ? 'bg-secondary-subtle text-secondary' : 'bg-success-subtle text-success');
+    tbodyPedidos.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>#${p.nunota}</td>
+        <td><div class="fw-semibold">${p.fornecedor}</div><div class="small text-muted">${p.cnpj}</div></td>
+        <td>${new Date(p.emissao).toLocaleDateString()}</td>
+        <td>${new Date(p.previsao).toLocaleDateString()}</td>
+        <td class="text-end">${fmtBRL(p.total)}</td>
+        <td><span class="badge ${badge}">${p.status.replace('_',' ')}</span></td>
+        <td class="text-end">${atraso}</td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-secondary" onclick="abrirDetalhes(${p.nunota})">Detalhes</button></td>
+      </tr>
+    `);
+  });
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      appendMsg('assistant', `Erro: ${text.slice(0,200)}`);
+  vazioPedidos.classList.toggle('d-none', lista.length>0);
+}
+
+function abrirDetalhes(nunota){
+  const p = MOCK_PEDIDOS.find(x=>x.nunota===nunota);
+  if(!p) return;
+  document.getElementById('detalhesTitulo').textContent = `Pedido #${p.nunota} · ${p.fornecedor}`;
+  const tbody = p.itens.map(i=>`
+    <tr>
+      <td>${i.cod}</td><td>${i.desc}</td>
+      <td class="text-end">${i.qtd}</td><td>${i.un}</td>
+      <td class="text-end">${fmtBRL(i.vlr)}</td>
+      <td class="text-center">${i.critico?'<span class="badge text-bg-danger">Sim</span>':'<span class="badge text-bg-secondary">Não</span>'}</td>
+    </tr>`).join('');
+  document.getElementById('detalhesBody').innerHTML = `
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <span class="badge text-bg-light">TOP: ${p.top}</span>
+      <span class="badge text-bg-light">Comprador: ${p.comprador}</span>
+      <span class="badge text-bg-light">CNPJ: ${p.cnpj}</span>
+    </div>
+    <div class="table-responsive border rounded">
+      <table class="table table-sm m-0">
+        <thead class="table-light"><tr><th>Código</th><th>Descrição</th><th class="text-end">Qtd</th><th>Un</th><th class="text-end">Valor</th><th class="text-center">Crítico</th></tr></thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between mt-2 small text-muted">
+      <div>Emissão: ${new Date(p.emissao).toLocaleDateString()} · Previsão: ${new Date(p.previsao).toLocaleDateString()}</div>
+      <div class="fw-semibold">Total: ${fmtBRL(p.total)}</div>
+    </div>`;
+  new bootstrap.Modal('#modalDetalhes').show();
+}
+
+/* Export CSV */
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const rows = [['nunota','fornecedor','cnpj','emissao','previsao','total','status','top','comprador','dias_atraso']];
+  MOCK_PEDIDOS.forEach(p=>{
+    const atraso = p.status==='ATRASADO' ? dias(p.previsao, new Date()) : 0;
+    rows.push([p.nunota,p.fornecedor,p.cnpj,p.emissao,p.previsao,p.total,p.status,p.top,p.comprador,atraso]);
+  });
+  const csv = rows.map(r=>r.join(';')).join('\n');
+  const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = `pedidos_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* Filtros Pedidos */
+document.getElementById('buscaPedidos').addEventListener('input', e=>{BUSCA=e.target.value; renderPedidos();});
+document.getElementById('statusMenu').addEventListener('click', e=>{
+  if(e.target.matches('.dropdown-item')){
+    e.preventDefault();
+    document.querySelectorAll('#statusMenu .dropdown-item').forEach(a=>a.classList.remove('active'));
+    e.target.classList.add('active');
+    STATUS_ATUAL = e.target.dataset.status;
+    renderPedidos();
+  }
+});
+
+/* =========================== Chat ========================== */
+const chatBox=document.getElementById('chatBox');
+const chatInput=document.getElementById('chatInput');
+const btnSend=document.getElementById('btnSendChat');
+const history=[];
+
+function appendMsg(role,html){
+  const row=document.createElement('div');
+  row.className = role==='user' ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2';
+  const bubble=document.createElement('div');
+  bubble.className='bubble ' + (role==='user'?'bubble-user':'bubble-ai');
+  typeof html==='string' ? bubble.textContent=html : bubble.appendChild(html);
+  row.appendChild(bubble); chatBox.appendChild(row); chatBox.scrollTop=chatBox.scrollHeight;
+}
+function tableFromData(data){
+  const t=document.createElement('table'); t.className='table table-sm table-striped mb-0';
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  (data.columns||[]).forEach(c=>{const th=document.createElement('th'); th.textContent=c; trh.appendChild(th);});
+  thead.appendChild(trh); const tbody=document.createElement('tbody');
+  (data.rows||[]).forEach(r=>{const tr=document.createElement('tr'); r.forEach(c=>{const td=document.createElement('td'); td.textContent=c; tr.appendChild(td)}); tbody.appendChild(tr);});
+  t.appendChild(thead); t.appendChild(tbody); return t;
+}
+
+async function sendChat(text){
+  const msg=(text??chatInput.value).trim(); if(!msg) return;
+  appendMsg('user', msg); history.push({role:'user',content:msg}); chatInput.value='';
+  appendMsg('assistant','Digitando…');
+
+  try{
+    const resp = await fetch('/api/ai/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({message:msg, context:{comprador:COMPRADOR}, history: history.slice(-8)})});
+    chatBox.lastChild?.remove(); // remove "Digitando…"
+
+    if(!resp.ok){
+      appendMsg('assistant',`Falha ao contatar IA (${resp.status}). Resposta simulada: Para ${COMPRADOR}, há 8 pedidos em aberto e 14 itens críticos. Priorize #101567 (Resinas).`);
       return;
     }
-
-    const data = await resp.json();
-    const reply = data.reply || 'Sem resposta no momento.';
-    appendMsg('assistant', reply);
-    chatHistory.push({ role: 'assistant', content: reply });
-
-    // Se vier uma tabela, renderiza
-    if (data?.data?.table) {
-      const table = tableFromData(data.data.table);
-      appendMsg('assistant', table);
-    }
-    // Se vier uma série, mostra lista simples (ou você pode plotar no Chart.js)
-    if (data?.data?.series) {
-      const s = seriesToSmallList(data.data.series);
-      appendMsg('assistant', s);
-    }
-
-    // Se for ação que exige confirmação (ex.: editar/imprimir)
-    if (data?.confirmationRequired && data?.action) {
-      const ok = confirm(reply + "\n\nConfirmar?");
-      if (ok) {
-        if (data.action.type === 'editar_pedido') {
-          // chama sua rota existente
-          const r2 = await fetch('/api/editar-pedido', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              usuario, senha,
-              nunota: data.action.nunota,
-              novaDataEntrega: (data.action.novaDataEntrega || '').split('/').reverse().join('-'), // DD/MM/YYYY -> YYYY-MM-DD
-              novaObs: `Ajuste via chat em ${new Date().toLocaleString('pt-BR')}`
-            })
-          });
-          appendMsg('assistant', r2.ok ? 'Pedido atualizado com sucesso.' : 'Falha ao atualizar o pedido.');
-        }
-        if (data.action.type === 'imprimir_pedido') {
-          // baixa o PDF
-          const r3 = await fetch('/api/imprimir-pedido', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usuario, senha, nunota: data.action.nunota })
-          });
-          if (r3.ok) {
-            const blob = await r3.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `pedido_${data.action.nunota}.pdf`;
-            a.click();
-            URL.revokeObjectURL(url);
-            appendMsg('assistant', 'PDF gerado e baixado.');
-          } else {
-            appendMsg('assistant', 'Falha ao gerar o PDF.');
-          }
-        }
-      } else {
-        appendMsg('assistant', 'Ok, ação cancelada.');
-      }
-    }
-  } catch (err) {
-    // remove "Digitando…" se ainda existir
+    const data=await resp.json();
+    const reply=data.reply || 'Sem resposta no momento.'; appendMsg('assistant',reply); history.push({role:'assistant',content:reply});
+    if(data?.data?.table) appendMsg('assistant', tableFromData(data.data.table));
+  }catch(err){
     chatBox.lastChild?.remove?.();
-    appendMsg('assistant', `Falha ao contatar IA: ${err.message}`);
+    appendMsg('assistant',`Erro de rede. Sugestão: consolide cotações e priorize itens críticos.`);
   }
 }
+btnSend.addEventListener('click', ()=>sendChat());
+chatInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); sendChat(); }});
+document.querySelectorAll('.suggestion').forEach(b=> b.addEventListener('click', ()=> sendChat(b.textContent)));
 
-btnSend?.addEventListener('click', sendChat);
-chatInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+/* ====================== Toolbar topo ======================= */
+document.getElementById('aplicarComprador').addEventListener('click', ()=>{
+  COMPRADOR = document.getElementById('compradorInput').value.toUpperCase().trim();
+  localStorage.setItem('comprador', COMPRADOR);
+  renderPedidos();
+});
+document.getElementById('btnRefresh').addEventListener('click', ()=>{
+  // Aqui você pode “trocar” mocks por chamadas reais
+  preencherKPIs(MOCK_KPIS);
+  renderCharts(MOCK_SERIES);
+  renderPedidos();
+});
 
-
-
-  // ===== Inicialização (carrega dados do dashboard ao abrir) =====
-  document.addEventListener("DOMContentLoaded", () => {
-    carregarQuantidadePedidos();
-    carregarQuantidadeAtrasados();
-    carregarQuantidadePrazo();
-    carregarQuantidadeVencer();
-    carregarGraficoVendas();
-    carregarPedidosPorMes();
-    // Gráfico donut (mock)
-    renderDoughnutChart("grafico3", ["Resolvido", "Pendente"], [12, 28], ["#0d6efd", "#20c997"]);
-  });
+/* ===================== Inicialização ======================= */
+document.addEventListener('DOMContentLoaded', ()=>{
+  preencherKPIs(MOCK_KPIS);
+  renderCharts(MOCK_SERIES);
+  renderPedidos();
+});
 </script>
-
 </body>
 </html>

@@ -1101,6 +1101,86 @@ app.get('/api/produtos-por-pedido', async (req, res) => {
     }
 });
 
+
+// pedidos por nunota
+app.get('/api/pedido-comprador', async (req, res) => {
+    const { usuario, senha, comprador } = req.query;
+
+    if (!usuario || !senha || !comprador) {
+        return res.status(400).json({ erro: 'Parâmetros ausentes.' });
+    }
+
+    try {
+        // Faz login
+        const loginResponse = await axios.post(
+            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+            {
+                serviceName: "MobileLoginSP.login",
+                requestBody: {
+                    NOMUSU: { "$": usuario },
+                    INTERNO: { "$": senha },
+                    KEEPCONNECTED: { "$": "S" }
+                }
+            },
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+        if (!jsessionid) throw new Error("Falha no login");
+
+        const sql = `
+           SELECT 
+                CAB.NUNOTA,
+                PAR.CODPARC || ' - ' || PAR.NOMEPARC AS NOMEFOR,
+                CAB.VLRNOTA AS VALOR,
+                CASE WHEN CAB.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
+                NVL(TO_CHAR(CAB.DTPREVENT, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
+                CAB.DTPREVENT - SYSDATE AS DIASATRASO
+            FROM TGFITE ITE
+            INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+            LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+            JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+            WHERE PAR.CODVEND = ${comprador}
+            AND CAB.TIPMOV = 'C'
+            AND CAB.PENDENTE = 'S'
+        `;
+//todo
+        const consulta = {
+            serviceName: "DbExplorerSP.executeQuery",
+            requestBody: {
+                sql,
+                outputType: "json"
+            }
+        };
+
+        const response = await axios.post(
+            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+            consulta,
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cookie': `JSESSIONID=${jsessionid}`
+                }
+            }
+        );
+
+        const produtos = response.data.responseBody?.rows.map(row => ({
+            NUNOTA: row[0],
+            FORNECEDOR: row[1],
+            VALOR: row[2],
+            STATUS: row[3],
+            AD_DTENTREGA: row[4],
+            DIASATRASO: row[5]
+        })) || [];
+
+        res.json(produtos);
+    } catch (error) {
+        console.error("Erro ao buscar produtos do pedido:", error.message);
+        res.status(500).json({ erro: "Erro ao buscar produtos do pedido" });
+    }
+});
+
+
 app.post('/api/financeiro', async (req, res) => {
     const { usuario, senha, codparc } = req.body;
 
