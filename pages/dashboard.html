@@ -240,43 +240,77 @@
       </div>
     </div>
   </div>
-
-  <!-- ========================= CHAT ========================= -->
-  <div class="tab-pane fade" id="pane-chat" role="tabpanel" aria-labelledby="tab-chat">
-    <div class="row g-3">
-      <div class="col-12 col-xl-8">
-        <div class="card card-radius shadow-sm">
-          <div class="card-body">
-            <h6 class="fw-semibold mb-3"><i class="fa-solid fa-robot me-2"></i>Pergunte ao NXPilot</h6>
-            <div id="chatBox" class="chat-box mb-3"></div>
-            <div class="input-group">
-              <input id="chatInput" type="text" class="form-control" placeholder="Escreva sua pergunta… (ex.: 'Pedidos atrasados do meu portfólio')"/>
-              <button id="btnSendChat" class="btn btn-primary"><i class="fa-solid fa-paper-plane me-1"></i>Enviar</button>
-            </div>
-            <div class="d-flex flex-wrap gap-2 mt-2">
-              <button class="btn btn-outline-secondary btn-sm suggestion">Listar pedidos atrasados do meu portfólio</button>
-              <button class="btn btn-outline-secondary btn-sm suggestion">Quais itens críticos vencem nesta semana?</button>
-              <button class="btn btn-outline-secondary btn-sm suggestion">Top 5 fornecedores por gasto e atraso</button>
-              <button class="btn btn-outline-secondary btn-sm suggestion">Oportunidades de savings por família</button>
+<!-- ========================= CHAT ========================= -->
+<div class="tab-pane fade" id="pane-chat" role="tabpanel" aria-labelledby="tab-chat">
+  <div class="row g-3">
+    <div class="col-12 col-xl-8">
+      <div class="card card-radius shadow-sm">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <h6 class="fw-semibold m-0"><i class="fa-solid fa-robot me-2"></i>NXCopilot · Compras</h6>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge text-bg-light">Comprador: <strong id="ctxComprador">—</strong></span>
+              <div class="d-flex align-items-center gap-1">
+                <input id="userSankhya" class="form-control form-control-sm" style="width:120px" placeholder="Usuário"/>
+                <input id="passSankhya" type="password" class="form-control form-control-sm" style="width:120px" placeholder="Senha"/>
+                <div class="form-check ms-1">
+                  <input class="form-check-input" type="checkbox" id="rememberCreds">
+                  <label class="form-check-label small text-muted" for="rememberCreds">lembrar</label>
+                </div>
+                <button id="btnSaveCreds" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-key me-1"></i>Salvar</button>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="col-12 col-xl-4">
-        <div class="card card-radius shadow-sm">
-          <div class="card-body">
-            <h6 class="fw-semibold mb-3">Dicas rápidas</h6>
-            <ul class="small m-0">
-              <li>Use <strong>comprador=CARLA</strong> para filtrar seus dados.</li>
-              <li>Peça <em>“detalhar pedido #101567”</em> para abrir itens.</li>
-              <li>Fale <em>“alterar previsão para 10/09/2025 do #101234”</em> para receber confirmação.</li>
-            </ul>
+
+          <!-- Comandos rápidos -->
+          <div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 py-2">
+            <span class="small text-muted me-2"><i class="fa-solid fa-terminal me-1"></i>Comandos:</span>
+            <code class="small">/necessidades</code>
+            <code class="small">/criticos</code>
+            <code class="small">/status PRO-001</code>
+            <code class="small">/atrasados</code>
+            <code class="small">/abertos</code>
+            <code class="small">/recebidos</code>
+            <code class="small">/itens 101567</code>
+            <code class="small">/previsao 101234 10/09/2025</code>
+            <span class="small text-muted ms-auto">Enter = enviar · Shift+Enter = nova linha</span>
+          </div>
+
+          <div id="chatBox" class="chat-box mb-3"></div>
+
+          <div class="input-group">
+            <textarea id="chatInput" rows="1" class="form-control" placeholder="Ex.: /necessidades ou 'itens críticos do meu portfólio'"></textarea>
+            <button id="btnSendChat" class="btn btn-primary">
+              <span class="d-inline-flex align-items-center"><i class="fa-solid fa-paper-plane me-1"></i>Enviar</span>
+            </button>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <button class="btn btn-outline-secondary btn-sm suggestion">/necessidades</button>
+            <button class="btn btn-outline-secondary btn-sm suggestion">/criticos</button>
+            <button class="btn btn-outline-secondary btn-sm suggestion">/atrasados</button>
+            <button class="btn btn-outline-secondary btn-sm suggestion">/itens 101567</button>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
+    <div class="col-12 col-xl-4">
+      <div class="card card-radius shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-semibold mb-3">Dicas rápidas</h6>
+          <ul class="small m-0">
+            <li>Use <strong>comprador=<span class="ctxComprador">CARLA</span></strong> para filtrar.</li>
+            <li><em>“necessidades de compra”</em> mostra sugestão de reposição.</li>
+            <li><em>“itens críticos”</em> = cobertura &lt; lead time.</li>
+            <li><em>“pedidos atrasados”</em> lista POs vencidos.</li>
+            <li><em>“itens do pedido #101567”</em> abre os itens.</li>
+            <li><em>“alterar previsão do #101234 para 10/09/2025”</em> pede confirmação.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ======================= MODAL DETALHES =================== -->
@@ -454,53 +488,286 @@ document.getElementById('statusMenu').addEventListener('click', e=>{
 });
 
 /* =========================== Chat ========================== */
-const chatBox=document.getElementById('chatBox');
-const chatInput=document.getElementById('chatInput');
-const btnSend=document.getElementById('btnSendChat');
-const history=[];
+const chatBox   = document.getElementById('chatBox');
+const chatInput = document.getElementById('chatInput');
+const btnSend   = document.getElementById('btnSendChat');
+const ctxCompr  = document.getElementById('ctxComprador');
 
-function appendMsg(role,html){
-  const row=document.createElement('div');
-  row.className = role==='user' ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2';
-  const bubble=document.createElement('div');
-  bubble.className='bubble ' + (role==='user'?'bubble-user':'bubble-ai');
-  typeof html==='string' ? bubble.textContent=html : bubble.appendChild(html);
-  row.appendChild(bubble); chatBox.appendChild(row); chatBox.scrollTop=chatBox.scrollHeight;
+// Credenciais
+const userInp = document.getElementById('userSankhya');
+const passInp = document.getElementById('passSankhya');
+const remember = document.getElementById('rememberCreds');
+const btnSaveCreds = document.getElementById('btnSaveCreds');
+
+const LS_USER = 'nx_user';
+const LS_REM  = 'nx_remember';
+
+// carrega comprador e credenciais
+function syncCtx(){
+  ctxCompr.textContent = COMPRADOR;
+  document.querySelectorAll('.ctxComprador').forEach(el=> el.textContent = COMPRADOR);
 }
+syncCtx();
+
+(function loadCreds(){
+  const u = localStorage.getItem(LS_USER) || '';
+  const r = localStorage.getItem(LS_REM) === '1';
+  if (r) {
+    userInp.value = u;
+    // por segurança não persistimos a senha; o usuário deve digitar a cada sessão
+    remember.checked = true;
+  }
+})();
+
+btnSaveCreds.addEventListener('click', ()=>{
+  const u = userInp.value.trim();
+  const r = remember.checked;
+  if (r && !u) { alert('Informe o usuário para lembrar.'); return; }
+  if (r) {
+    localStorage.setItem(LS_USER, u);
+    localStorage.setItem(LS_REM, '1');
+  } else {
+    localStorage.removeItem(LS_USER);
+    localStorage.removeItem(LS_REM);
+  }
+  makeBubble('assistant', `Credenciais atualizadas. ${r ? 'Usuário lembrado (senha não é salva).' : 'Não vou lembrar credenciais.'}`);
+});
+
+// histórico
+let history = [];
+
+// ===== helpers UI =====
+function nl2br(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+function nowHHMM(){ const d=new Date(); return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+
+function makeBubble(role, htmlOrText){
+  const row = document.createElement('div');
+  row.className = role==='user' ? 'd-flex justify-content-end mb-2' : 'd-flex justify-content-start mb-2';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'd-flex flex-column align-items-' + (role==='user'?'end':'start');
+  row.appendChild(wrap);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ' + (role==='user' ? 'bubble-user' : 'bubble-ai');
+  if (typeof htmlOrText === 'string') bubble.innerHTML = nl2br(htmlOrText);
+  else bubble.appendChild(htmlOrText);
+  wrap.appendChild(bubble);
+
+  if (role === 'assistant') {
+    const tools = document.createElement('div');
+    tools.className = 'bubble-tools mt-1';
+    tools.innerHTML = `
+      <button class="btn btn-outline-secondary btn-sm" title="Copiar"><i class="fa-regular fa-copy"></i></button>
+      <span class="msg-time">${nowHHMM()}</span>
+    `;
+    tools.querySelector('button').addEventListener('click', ()=>{
+      navigator.clipboard.writeText(bubble.textContent || '');
+      tools.querySelector('button').innerHTML = '<i class="fa-solid fa-check"></i>';
+      setTimeout(()=> tools.querySelector('button').innerHTML = '<i class="fa-regular fa-copy"></i>', 1200);
+    });
+    wrap.appendChild(tools);
+  }
+
+  chatBox.appendChild(row);
+  chatBox.scrollTop = chatBox.scrollHeight;
+  return row;
+}
+
+function makeLoading(){
+  const row = makeBubble('assistant', `
+    <span class="loader-dots"><span></span><span></span><span></span></span> Digitando…
+  `);
+  row.dataset.loading = '1';
+  return row;
+}
+
 function tableFromData(data){
   const t=document.createElement('table'); t.className='table table-sm table-striped mb-0';
   const thead=document.createElement('thead'); const trh=document.createElement('tr');
   (data.columns||[]).forEach(c=>{const th=document.createElement('th'); th.textContent=c; trh.appendChild(th);});
   thead.appendChild(trh); const tbody=document.createElement('tbody');
   (data.rows||[]).forEach(r=>{const tr=document.createElement('tr'); r.forEach(c=>{const td=document.createElement('td'); td.textContent=c; tr.appendChild(td)}); tbody.appendChild(tr);});
-  t.appendChild(thead); t.appendChild(tbody); return t;
+  t.appendChild(thead); t.appendChild(tbody);
+
+  // toolbar export CSV
+  const wrap = document.createElement('div');
+  const bar = document.createElement('div');
+  bar.className = 'd-flex justify-content-end mb-2';
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-outline-secondary btn-sm';
+  btn.innerHTML = '<i class="fa-solid fa-file-arrow-down me-1"></i>Exportar CSV';
+  btn.addEventListener('click', ()=>{
+    const rows = [data.columns, ...data.rows];
+    const csv = rows.map(r=> r.map(v=> String(v).replaceAll(';', ',')).join(';')).join('\n');
+    const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}); const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=`chat_table_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+  bar.appendChild(btn);
+  wrap.appendChild(bar);
+  wrap.appendChild(t);
+  return wrap;
 }
 
+function chartFromSeries(series){
+  // cria um canvas e desenha (line) com Chart.js já carregado
+  const wrap = document.createElement('div');
+  const canvas = document.createElement('canvas');
+  canvas.height = 180;
+  wrap.appendChild(canvas);
+  setTimeout(()=>{
+    new Chart(canvas, {
+      type: 'line',
+      data: { labels: series.map(s=>s.mes), datasets: [{ label:'Série', data: series.map(s=>s.valor), tension:.35 }] },
+      options: { responsive:true, plugins:{ legend:{ display:false } } }
+    });
+  }, 0);
+  return wrap;
+}
+
+// ===== slash commands focados em compras =====
+// /necessidades  | /criticos | /status PRO-001
+// /atrasados     | /abertos  | /recebidos
+// /itens 101567  | /previsao 101567 10/09/2025
+function parseSlashCommand(text){
+  const s = text.trim();
+  if (!s.startsWith('/')) return null;
+  const parts = s.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+
+  if (cmd === '/necessidades') return 'necessidades de compra';
+  if (cmd === '/criticos') return 'itens críticos do meu portfólio';
+  if (cmd === '/status' && parts[1]) return `status do item ${parts[1]}`;
+  if (cmd === '/atrasados') return 'pedidos atrasados';
+  if (cmd === '/abertos') return 'pedidos abertos';
+  if (cmd === '/recebidos') return 'pedidos recebidos';
+  if (cmd === '/itens' && parts[1]) return `itens do pedido #${parts[1].replace(/\D/g,'')}`;
+  if (cmd === '/previsao' && parts[1] && parts[2]) return `alterar previsão do #${parts[1].replace(/\D/g,'')} para ${parts[2]}`;
+  return null;
+}
+
+function requiredCreds(){
+  const usuario = userInp.value.trim();
+  const senha   = passInp.value;
+  if(!usuario || !senha){
+    makeBubble('assistant', 'Informe <strong>usuário e senha</strong> do Sankhya (campo no topo do chat).');
+    return null;
+  }
+  return { usuario, senha };
+}
+
+// ===== envio principal =====
 async function sendChat(text){
-  const msg=(text??chatInput.value).trim(); if(!msg) return;
-  appendMsg('user', msg); history.push({role:'user',content:msg}); chatInput.value='';
-  appendMsg('assistant','Digitando…');
+  const raw = (text ?? chatInput.value).trim();
+  if(!raw) return;
+
+  // Shift+Enter = nova linha
+  if(!text){ chatInput.value=''; chatInput.style.height='auto'; }
+
+  // valida credenciais
+  const creds = requiredCreds();
+  if(!creds) return;
+
+  // mapeia comando
+  const cmd = parseSlashCommand(raw);
+  const msg = cmd || raw;
+
+  // envia visual
+  makeBubble('user', raw);
+  history.push({role:'user', content: raw});
+  const loadingRow = makeLoading();
 
   try{
-    const resp = await fetch('/api/ai/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({message:msg, context:{comprador:COMPRADOR}, history: history.slice(-8)})});
-    chatBox.lastChild?.remove(); // remove "Digitando…"
+    const resp = await fetch('/api/ai/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        message: msg,
+        usuario: creds.usuario,
+        senha: creds.senha,
+        comprador: COMPRADOR,
+        history: history.slice(-8)
+      })
+    });
+
+    loadingRow.remove();
 
     if(!resp.ok){
-      appendMsg('assistant',`Falha ao contatar IA (${resp.status}). Resposta simulada: Para ${COMPRADOR}, há 8 pedidos em aberto e 14 itens críticos. Priorize #101567 (Resinas).`);
+      makeBubble('assistant', `Falha ao contatar IA (${resp.status}).`);
       return;
     }
-    const data=await resp.json();
-    const reply=data.reply || 'Sem resposta no momento.'; appendMsg('assistant',reply); history.push({role:'assistant',content:reply});
-    if(data?.data?.table) appendMsg('assistant', tableFromData(data.data.table));
+
+    const data = await resp.json();
+
+    // Confirmação (alterar previsão etc.)
+    if (data.confirmationRequired && data.action?.type === 'editar_previsao_pedido') {
+      const { nunota, novaData } = data.action;
+      const box = document.createElement('div');
+      box.innerHTML = `
+        ${nl2br(data.reply || 'Confirmar ação?')}
+        <div class="mt-2 d-flex gap-2">
+          <button class="btn btn-sm btn-primary" id="btnConfirmaPrev">Confirmar</button>
+          <button class="btn btn-sm btn-outline-secondary" id="btnCancelaPrev">Cancelar</button>
+        </div>
+      `;
+      const row = makeBubble('assistant', box);
+
+      box.querySelector('#btnConfirmaPrev').addEventListener('click', async ()=>{
+        box.querySelector('#btnConfirmaPrev').disabled = true;
+        try{
+          const r2 = await fetch('/api/ai/confirmar-previsao', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ usuario: creds.usuario, senha: creds.senha, nunota, novaData })
+          });
+          const j2 = await r2.json();
+          makeBubble('assistant', j2.reply || (j2.ok ? 'Previsão atualizada.' : 'Não foi possível concluir.'));
+        }catch(e){
+          makeBubble('assistant', 'Erro ao confirmar atualização de previsão.');
+        }
+      });
+      box.querySelector('#btnCancelaPrev').addEventListener('click', ()=> {
+        makeBubble('assistant', 'Ação cancelada.');
+      });
+      return;
+    }
+
+    const reply = data.reply || 'Sem resposta no momento.';
+    makeBubble('assistant', reply);
+    history.push({role:'assistant', content: reply});
+
+    if(data?.data?.table){
+      makeBubble('assistant', tableFromData(data.data.table));
+    }
+    if(data?.data?.series){
+      makeBubble('assistant', chartFromSeries(data.data.series));
+    }
+
   }catch(err){
-    chatBox.lastChild?.remove?.();
-    appendMsg('assistant',`Erro de rede. Sugestão: consolide cotações e priorize itens críticos.`);
+    loadingRow.remove();
+    makeBubble('assistant', `Erro de rede. Tente novamente.`);
   }
 }
-btnSend.addEventListener('click', ()=>sendChat());
-chatInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); sendChat(); }});
+
+// eventos
+btnSend.addEventListener('click', ()=> sendChat());
+chatInput.addEventListener('keydown', e=>{
+  // auto-resize
+  setTimeout(()=> {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(140, chatInput.scrollHeight) + 'px';
+  }, 0);
+
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendChat();
+  }
+});
 document.querySelectorAll('.suggestion').forEach(b=> b.addEventListener('click', ()=> sendChat(b.textContent)));
+
+// mensagem inicial
+makeBubble('assistant', 'Olá! Posso trazer <code>/necessidades</code>, <code>/criticos</code>, <code>/atrasados</code>, <code>/itens 101567</code> ou <code>/previsao 101567 10/09/2025</code>.');
 
 /* ====================== Toolbar topo ======================= */
 document.getElementById('aplicarComprador').addEventListener('click', ()=>{

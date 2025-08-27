@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -6,82 +7,92 @@ require('dotenv').config();
 
 const app = express();
 app.use(cors({
-    origin: '*', // ou especifique 'http://sankhya.nxboats.com.br' se preferir mais seguro
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+  origin: '*', // ajuste para seu domínio em produção
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
 const SANKHYA_URL = 'http://sankhya2.nxboats.com.br:8180';
 
-// Servir HTML
+// Servir estáticos
 app.use('/pages', express.static(path.join(__dirname, 'pages')));
 app.use('/style', express.static(path.join(__dirname, 'style')));
-app.use(express.static(path.join(__dirname, 'public'))); // ou 'pages'
+app.use(express.static(path.join(__dirname, 'public')));
 
-
-// LOGIN
+// =====================================================
+// LOGIN (retorna sessão e CODPARC do usuário)
+// =====================================================
 app.post('/api/login', async (req, res) => {
-    const { usuario, senha } = req.body;
-    if (!usuario || !senha) return res.status(400).json({ erro: 'Usuário e senha são obrigatórios.' });
+  const { usuario, senha } = req.body;
+  if (!usuario || !senha) return res.status(400).json({ erro: 'Usuário e senha são obrigatórios.' });
 
-    try {
-        // LOGIN
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario.toUpperCase() },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    // LOGIN
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      {
+        serviceName: "MobileLoginSP.login",
+        requestBody: {
+          NOMUSU: { "$": usuario.toUpperCase() },
+          INTERNO: { "$": senha },
+          KEEPCONNECTED: { "$": "S" }
+        }
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
 
-        const jsessionid = response.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Login inválido");
+    const jsessionid = response.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Login inválido");
 
-        // CONSULTAR CODPARC
-        const consultaCodparc = await axios.post(`${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`, {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql: `SELECT CODVEND as CODPARC FROM TSIUSU WHERE NOMEUSU = UPPER('${usuario}')`,
-                outputType: "json"
-            }
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Cookie': `JSESSIONID=${jsessionid}`
-            }
-        });
+    // CONSULTA CODPARC (ajuste conforme seu dicionário)
+    const consultaCodparc = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      {
+        serviceName: "DbExplorerSP.executeQuery",
+        requestBody: {
+          sql: `SELECT CODVEND as CODPARC FROM TSIUSU WHERE NOMEUSU = UPPER('${usuario}')`,
+          outputType: "json"
+        }
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': `JSESSIONID=${jsessionid}`
+        }
+      }
+    );
 
-        const codparc = consultaCodparc.data.responseBody?.rows?.[0]?.[0];
-        if (!codparc) throw new Error("CODPARC não encontrado");
+    const codparc = consultaCodparc.data.responseBody?.rows?.[0]?.[0];
+    if (!codparc) throw new Error("CODPARC não encontrado");
 
-        res.json({ sucesso: true, session: jsessionid, usuario, senha, codparc });
-    } catch (err) {
-        res.status(401).json({ erro: 'Falha no login' });
-    }
+    res.json({ sucesso: true, session: jsessionid, usuario, senha, codparc });
+  } catch (err) {
+    res.status(401).json({ erro: 'Falha no login' });
+  }
 });
 
-// --- inicio IA NXCopilot ---
-// ===== AÇÕES INTELIGENTES NO CHAT =====
+// =====================================================
+// ===== IA NXCopilot (foco COMPRAS com a sua VIEW) ====
+// =====================================================
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const GEMINI_MODEL = "gemini-1.5-flash";
 
-// Helper: criar axios com timeout decente
+// axios com timeout (usado nas helpers)
 const axiosInstance = axios.create({ timeout: 20000, validateStatus: () => true });
 
-// Helper: login no Sankhya e retorna JSESSIONID
+// Login Sankhya → JSESSIONID
 async function sankhyaLogin(usuario, senha) {
   const r = await axiosInstance.post(
     `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
     {
       serviceName: "MobileLoginSP.login",
-      requestBody: { NOMUSU: { "$": usuario.toUpperCase() }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } }
+      requestBody: {
+        NOMUSU: { "$": String(usuario || "").toUpperCase() },
+        INTERNO: { "$": String(senha || "") },
+        KEEPCONNECTED: { "$": "S" }
+      }
     },
     { headers: { "Content-Type": "application/json" } }
   );
@@ -90,1495 +101,1158 @@ async function sankhyaLogin(usuario, senha) {
   return jsessionid;
 }
 
-// Helper: executa SQL e retorna `rows`
+// Executa SELECT e retorna rows (array de arrays)
 async function sankhyaSQL(jsessionid, sql) {
-  const payload = {
-    serviceName: "DbExplorerSP.executeQuery",
-    requestBody: { sql, outputType: "json" }
-  };
+  const payload = { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } };
   const r = await axiosInstance.post(
     `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
     payload,
-    { headers: { "Content-Type": "application/json", "Cookie": `JSESSIONID=${jsessionid}` } }
+    { headers: { "Content-Type": "application/json", Cookie: `JSESSIONID=${jsessionid}` } }
   );
-  if (!r.data?.responseBody?.rows) return [];
-  return r.data.responseBody.rows;
+  return r.data?.responseBody?.rows || [];
 }
 
-// Helpers: parsing rápido (pt-BR)
+// Executa UPDATE
+async function sankhyaExecUpdate(jsessionid, sqlUpdate) {
+  const payload = { serviceName: "DbExplorerSP.executeUpdate", requestBody: { sql: { "$": sqlUpdate } } };
+  const r = await axiosInstance.post(
+    `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeUpdate&outputType=json`,
+    payload,
+    { headers: { "Content-Type": "application/json", Cookie: `JSESSIONID=${jsessionid}` } }
+  );
+  if (r.status !== 200) throw new Error(`Erro execUpdate HTTP ${r.status}`);
+  return true;
+}
+
+// ==== Parsing pt-BR
 function extrairNunota(texto) {
-  const m = texto.match(/pedido\s*(n[úu]mero)?\s*([0-9]{4,})|nunota\s*([0-9]{4,})/i);
-  return m ? (m[2] || m[3]) : null;
+  if (!texto) return null;
+  const mHash = texto.match(/#\s*(\d{3,})/);
+  if (mHash) return mHash[1];
+  const m = texto.match(/pedido\s*(?:n[úu]mero)?\s*(\d{3,})|nunota\s*(\d{3,})/i);
+  return m ? (m[1] || m[2]) : null;
 }
 function extrairDataBR(texto) {
-  // aceita 01/09/2025 ou 2025-09-01
+  if (!texto) return null;
   const m1 = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (m1) return `${m1[1]}/${m1[2]}/${m1[3]}`;
   const m2 = texto.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
   return null;
 }
-
-// Classificador simples de intenção (regras)
-function detectarIntencao(msg) {
-  const t = msg.toLowerCase();
-
-  // contagens
-  if (t.includes("do mês") || t.includes("deste mês") || t.includes("mês atual")) return { intent: "contar_pedidos_mes" };
-  if (t.includes("atrasad")) return { intent: "listar_atrasados" };
-  if (t.includes("no prazo") || t.includes("em dia")) return { intent: "listar_no_prazo" };
-  if (t.includes("a vencer") || t.includes("vencer")) return { intent: "listar_a_vencer" };
-
-  // gráficos / séries
-  if (t.includes("vendas por mês") || t.includes("vendas mensais") || t.includes("valor por mês"))
-    return { intent: "serie_vendas_mes" };
-  if (t.includes("pedidos por mês") || t.includes("quantidade por mês"))
-    return { intent: "serie_pedidos_mes" };
-
-  // por NUNOTA
-  if (t.includes("produto") && (t.includes("pedido") || t.includes("nunota"))) return { intent: "produtos_por_pedido" };
-  if (t.includes("imprimir") && (t.includes("pedido") || t.includes("nunota"))) return { intent: "imprimir_pedido" };
-  if ((t.includes("alterar") || t.includes("mudar") || t.includes("editar")) && t.includes("entrega"))
-    return { intent: "editar_data_pedido" };
-
-  // financeiro
-  if (t.includes("financeiro") || t.includes("parcelas") || t.includes("a pagar"))
-    return { intent: "listar_financeiro" };
-
-  return { intent: "fallback" };
+function extrairCodprod(texto) {
+  if (!texto) return null;
+  const tag = texto.match(/\b([A-Z0-9][A-Z0-9\-_\.]{2,})\b/i);
+  if (tag) return tag[1].toUpperCase();
+  const num = texto.match(/codprod\s*[:\-]?\s*([A-Z0-9\-_\.]+)/i);
+  return num ? num[1].toUpperCase() : null;
 }
-
-// Formatações
+function toISODateBR(br) {
+  const m = (br||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
 function fmtBRL(n) {
   const v = Number(n || 0);
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-// Rota do chat com ações inteligentes
+// ==== Classificador de intenção (insensível a acentos)
+function norm(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+function detectarIntencao(msg) {
+  const t = norm(msg);
+  const has = (...xs)=> xs.some(x => t.includes(x));
+
+  // Compras (VIEW)
+  if (has('necessidad','reposicao','repor','sugest','comprar')) return { intent: 'necessidades_compra' };
+  if (has('critic','cobertura','estoque minimo','seguranca','safety stock')) return { intent: 'itens_criticos' };
+  if (has('status','posicao') && has('item','produto')) return { intent: 'status_item' };
+
+  // Pedidos
+  if (has('atrasad','vencid')) return { intent: 'pedidos_atrasados' };
+  if (has('aberto','pendente','em aberto')) return { intent: 'pedidos_abertos' };
+  if (has('recebid','entregue')) return { intent: 'pedidos_recebidos' };
+  if (has('detalh','itens') && has('pedido','nunota','#')) return { intent: 'produtos_por_pedido' };
+  if (has('alterar','mudar','editar') && has('previs','entrega')) return { intent: 'editar_previsao_pedido' };
+
+  // Séries
+  if (has('pedidos por mes','quantidade por mes')) return { intent: 'serie_pedidos_mes' };
+  if (has('gastos por mes','compras por mes','valor por mes')) return { intent: 'serie_gastos_mes' };
+
+  return { intent: 'fallback' };
+}
+
+// ============== SQL (usando a SUA VIEW) =================
+// Estrutura esperada da view (colunas relevantes):
+// CODPROD, DESCRPROD, LEADTIME, ESTOQUE, COMPRAPEN, EMPENHO,
+// GIRODIARIO, COBERTURA, DTRUPTURA, DTMELHORPED, NECESSIDADE, NIVEL, CODGRUPOPROD, ...
+function sqlViewNecessidades({ limitar = 20 }) {
+  return `
+    SELECT CODPROD, DESCRPROD, CODGRUPOPROD, ESTOQUE, GIRODIARIO, COBERTURA, LEADTIME,
+           COMPRAPEN, EMPENHO, NECESSIDADE, DTRUPTURA, DTMELHORPED, NIVEL
+    FROM VW_NX_ANALISE_COMPRAS
+    WHERE NECESSIDADE > 0
+    ORDER BY NECESSIDADE DESC, COBERTURA ASC
+    FETCH FIRST ${limitar} ROWS ONLY
+  `;
+}
+function sqlViewCriticos({ limitar = 20 }) {
+  return `
+    SELECT CODPROD, DESCRPROD, CODGRUPOPROD, ESTOQUE, GIRODIARIO, COBERTURA, LEADTIME,
+           COMPRAPEN, EMPENHO, NECESSIDADE, DTRUPTURA, DTMELHORPED, NIVEL
+    FROM VW_NX_ANALISE_COMPRAS
+    WHERE COBERTURA < LEADTIME
+    ORDER BY COBERTURA ASC, NECESSIDADE DESC
+    FETCH FIRST ${limitar} ROWS ONLY
+  `;
+}
+function sqlViewStatus(codprod) {
+  return `
+    SELECT CODPROD, DESCRPROD, ESTOQUE, GIRODIARIO, COBERTURA, LEADTIME,
+           COMPRAPEN, EMPENHO, NECESSIDADE, DTRUPTURA, DTMELHORPED, NIVEL
+    FROM VW_NX_ANALISE_COMPRAS
+    WHERE CODPROD = '${codprod}'
+  `;
+}
+
+// ======= Pedidos (mantidos como estavam, base TGFCAB/TGFITE)
+function sqlPedidosBase({ status, limitar = 20, comprador = null }) {
+  const filtroComprador = comprador ? `AND NVL(CAB.AD_COMPRADOR,'---') = '${comprador}'` : '';
+  let where = `CAB.TIPMOV = 'C' ${filtroComprador}`;
+  if (status === 'ATRASADOS') where += ` AND NVL(CAB.DTPREVENT, SYSDATE-1) < TRUNC(SYSDATE) AND CAB.STATUSNOTA <> 'L'`;
+  if (status === 'ABERTOS') where += ` AND CAB.STATUSNOTA <> 'L'`;
+  if (status === 'RECEBIDOS') where += ` AND CAB.STATUSNOTA = 'L'`;
+
+  return `
+    SELECT
+      CAB.NUNOTA,
+      PAR.RAZAOSOCIAL,
+      TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS EMISSAO,
+      NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO,
+      SUM(ITE.VLRTOT) AS TOTAL
+    FROM TGFCAB CAB
+    JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+    JOIN TGFITE ITE ON ITE.NUNOTA = CAB.NUNOTA
+    WHERE ${where}
+    GROUP BY CAB.NUNOTA, PAR.RAZAOSOCIAL, CAB.DTNEG, CAB.DTPREVENT
+    ORDER BY CAB.DTPREVENT NULLS FIRST, CAB.DTNEG DESC
+    FETCH FIRST ${limitar} ROWS ONLY
+  `;
+}
+function sqlItensDoPedido(nunota) {
+  return `
+    SELECT 
+      ITE.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
+      ITE.QTDNEG - ITE.QTDENTREGUE AS QTD_PEND,
+      ITE.CODVOL,
+      ITE.VLRTOT,
+      NVL(TO_CHAR(ITE.AD_DTENTREGA,'DD/MM/YYYY'),'SEM PREV.') AS PREV_ITEM
+    FROM TGFITE ITE
+    LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+    WHERE ITE.NUNOTA = ${Number(nunota)}
+    ORDER BY (ITE.QTDNEG - ITE.QTDENTREGUE) DESC
+  `;
+}
+
+// ================== Rota do chat ==================
 app.post("/api/ai/chat", async (req, res) => {
   try {
-    const { message, usuario, senha, codparc, history } = req.body || {};
+    const { message, usuario, senha, history, comprador: compradorRaw } = req.body || {};
     if (!message || !usuario || !senha) {
       return res.status(400).json({ erro: "Parâmetros ausentes (message, usuario, senha)." });
     }
 
+    const comprador = (compradorRaw || "").toString().toUpperCase().trim() || null;
     const { intent } = detectarIntencao(message);
 
-    // Algumas intenções precisam de NUNOTA/data
     const nunota = extrairNunota(message);
     const dataBR = extrairDataBR(message);
+    const codprod = extrairCodprod(message);
 
-    // Para intents que leem dados, vamos ao banco
-    if (["contar_pedidos_mes", "listar_atrasados", "listar_no_prazo", "listar_a_vencer",
-         "serie_vendas_mes", "serie_pedidos_mes", "produtos_por_pedido", "listar_financeiro"].includes(intent)) {
+    // Intenções que acessam base
+    if ([
+      "necessidades_compra", "itens_criticos", "status_item",
+      "pedidos_atrasados", "pedidos_abertos", "pedidos_recebidos",
+      "produtos_por_pedido", "serie_pedidos_mes", "serie_gastos_mes"
+    ].includes(intent)) {
+
       const jsession = await sankhyaLogin(usuario, senha);
 
-      // Despacho por intenção
-      if (intent === "contar_pedidos_mes") {
-        const sql = `
-          SELECT COUNT(CAB.NUNOTA) AS QTD
-          FROM TGFCAB CAB
-          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE PAR.CODPARC = ${codparc}
-            AND TO_CHAR(DTNEG,'MM/YYYY') = TO_CHAR(SYSDATE,'MM/YYYY')
-        `;
-        const rows = await sankhyaSQL(jsession, sql);
-        const qtd = rows?.[0]?.[0] || 0;
+      // === Necessidades (VIEW)
+      if (intent === "necessidades_compra") {
+        const rows = await sankhyaSQL(jsession, sqlViewNecessidades({ limitar: 20 }));
+        const table = {
+          columns: ["Cod", "Descrição", "Família", "Estoque", "Cons./Dia", "Cob.(d)", "LT(d)", "Em Trâns.", "Empenho", "Nec.", "Ruptura", "Melhor Ped.", "Nível"],
+          rows: rows.map(r => [
+            r[0], r[1], r[2],
+            Number(r[3]), Number(r[4]), Number(r[5]), Number(r[6]),
+            Number(r[7]), Number(r[8]), Number(r[9]),
+            r[10] ? String(r[10]).slice(0,10) : '—',
+            r[11] ? String(r[11]).slice(0,10) : '—',
+            r[12]
+          ])
+          .filter(r => Number(r[9]) > 0) // só necessidade > 0
+          .sort((a,b)=> Number(b[9]) - Number(a[9])) // ordena por NEC.
+          .slice(0, 15)
+        };
         return res.json({
-          reply: `Você tem ${qtd} pedidos emitidos neste mês.`,
-          data: { table: { columns: ["Pedidos do mês"], rows: [[qtd]] } }
+          reply: `Sugestões de compra (top ${table.rows.length})${comprador ? ` — ${comprador}` : ""}:`,
+          data: { table }
         });
       }
 
-      if (intent === "listar_atrasados") {
-        // Top 8 atrasados, ordenados por previsão mais antiga
-        const sql = `
-          SELECT CAB.NUNOTA,
-                 TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
-                 NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO
-          FROM TGFCAB CAB
-          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE PAR.CODPARC = ${codparc}
-            AND CAB.DTPREVENT < SYSDATE
-            AND EXISTS (SELECT 1 FROM TGFITE I WHERE I.NUNOTA = CAB.NUNOTA AND (I.QTDNEG - I.QTDENTREGUE) <> 0)
-          ORDER BY CAB.DTPREVENT ASC FETCH FIRST 8 ROWS ONLY
-        `;
-        const rows = await sankhyaSQL(jsession, sql);
+      // === Itens críticos (VIEW)
+      if (intent === "itens_criticos") {
+        const rows = await sankhyaSQL(jsession, sqlViewCriticos({ limitar: 20 }));
         const table = {
-          columns: ["NUNOTA", "Emissão", "Previsão"],
-          rows: rows.map(r => [r[0], r[1], r[2]])
+          columns: ["Cod", "Descrição", "Família", "Estoque", "Cons./Dia", "Cob.(d)", "LT(d)", "Em Trâns.", "Empenho", "Nec.", "Ruptura", "Melhor Ped.", "Nível"],
+          rows: rows.map(r => [
+            r[0], r[1], r[2],
+            Number(r[3]), Number(r[4]), Number(r[5]), Number(r[6]),
+            Number(r[7]), Number(r[8]), Number(r[9]),
+            r[10] ? String(r[10]).slice(0,10) : '—',
+            r[11] ? String(r[11]).slice(0,10) : '—',
+            r[12]
+          ])
         };
-        const countSql = `
-          SELECT COUNT(DISTINCT CAB.NUNOTA)
-          FROM TGFCAB CAB JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE PAR.CODPARC = ${codparc} AND (CAB.DTPREVENT < SYSDATE OR CAB.DTPREVENT IS NULL)
-        `;
-        const c = await sankhyaSQL(jsession, countSql);
-        const total = c?.[0]?.[0] || table.rows.length;
-        return res.json({ reply: `Encontrei ${total} pedidos atrasados. Mostrando os primeiros ${table.rows.length}.`, data: { table } });
+        return res.json({
+          reply: `Itens críticos (cobertura < lead time)${comprador ? ` — ${comprador}` : ""}:`,
+          data: { table }
+        });
       }
 
-      if (intent === "listar_no_prazo") {
-        const sql = `
-          SELECT CAB.NUNOTA,
-                 TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
-                 NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO
-          FROM TGFCAB CAB
-          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE PAR.CODPARC = ${codparc}
-            AND NVL(CAB.DTPREVENT, SYSDATE+365) >= SYSDATE
-            AND EXISTS (SELECT 1 FROM TGFITE I WHERE I.NUNOTA = CAB.NUNOTA AND (I.QTDNEG - I.QTDENTREGUE) <> 0)
-          ORDER BY CAB.DTPREVENT ASC FETCH FIRST 8 ROWS ONLY
-        `;
-        const rows = await sankhyaSQL(jsession, sql);
-        const table = { columns: ["NUNOTA", "Emissão", "Previsão"], rows: rows.map(r => [r[0], r[1], r[2]]) };
-        return res.json({ reply: `Alguns pedidos dentro do prazo:`, data: { table } });
+      // === Status do item (VIEW)
+      if (intent === "status_item") {
+        if (!codprod) return res.json({ reply: "Qual o código do produto? Ex.: status do item PRO-001" });
+        const rows = await sankhyaSQL(jsession, sqlViewStatus(codprod));
+        if (!rows.length) return res.json({ reply: `Não encontrei o produto ${codprod}.` });
+        const r = rows[0];
+        const table = {
+          columns: ["Cod", "Descrição", "Estoque", "Cons./Dia", "Cob.(d)", "LT(d)", "Em Trâns.", "Empenho", "Nec.", "Ruptura", "Melhor Ped.", "Nível"],
+          rows: [[
+            r[0], r[1],
+            Number(r[2]), Number(r[3]), Number(r[4]), Number(r[5]),
+            Number(r[6]), Number(r[7]), Number(r[8]),
+            r[9] ? String(r[9]).slice(0,10) : '—',
+            r[10] ? String(r[10]).slice(0,10) : '—',
+            r[11]
+          ]]
+        };
+        return res.json({ reply: `Status do item ${codprod}:`, data: { table } });
       }
 
-      if (intent === "listar_a_vencer") {
-        const sql = `
-          SELECT CAB.NUNOTA,
-                 TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
-                 NVL(TO_CHAR(CAB.DTPREVENT,'DD/MM/YYYY'),'SEM PREV.') AS PREVISAO
-          FROM TGFCAB CAB
-          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE PAR.CODPARC = ${codparc}
-            AND CAB.DTPREVENT BETWEEN SYSDATE AND SYSDATE + 10
-            AND EXISTS (SELECT 1 FROM TGFITE I WHERE I.NUNOTA = CAB.NUNOTA AND (I.QTDNEG - I.QTDENTREGUE) <> 0)
-          ORDER BY CAB.DTPREVENT ASC FETCH FIRST 8 ROWS ONLY
-        `;
-        const rows = await sankhyaSQL(jsession, sql);
-        const table = { columns: ["NUNOTA", "Emissão", "Previsão"], rows: rows.map(r => [r[0], r[1], r[2]]) };
-        return res.json({ reply: `Pedidos que vencem nos próximos 10 dias:`, data: { table } });
+      // === Pedidos
+      if (intent === "pedidos_atrasados" || intent === "pedidos_abertos" || intent === "pedidos_recebidos") {
+        const tipo = intent === "pedidos_atrasados" ? 'ATRASADOS' : (intent === "pedidos_recebidos" ? 'RECEBIDOS' : 'ABERTOS');
+        const rows = await sankhyaSQL(jsession, sqlPedidosBase({ status: tipo, limitar: 30, comprador }));
+        const table = {
+          columns: ["NUNOTA", "Fornecedor", "Emissão", "Previsão", "Total"],
+          rows: rows.map(r => [r[0], r[1], r[2], r[3], fmtBRL(r[4])])
+        };
+        return res.json({ reply: `Pedidos ${tipo.toLowerCase()}${comprador ? ` — ${comprador}` : ""}:`, data: { table } });
       }
 
-      if (intent === "serie_vendas_mes") {
-        const sql = `
-          SELECT SUM(CAB.VLRNOTA) as VALOR,
-                 TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
-          FROM TGFCAB CAB
-          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE CAB.TIPMOV = 'O'
-            AND CAB.STATUSNOTA = 'L'
-            AND CAB.DTNEG > TRUNC(SYSDATE - 365)
-            AND PAR.CODPARC = ${codparc}
-          GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
-          ORDER BY TRUNC(CAB.DTNEG, 'MM')
-        `;
-        const rows = await sankhyaSQL(jsession, sql);
-        const series = rows.map(r => ({ mes: r[1], valor: Number(r[0]) || 0 }));
-        return res.json({ reply: `Segue a série de vendas mensais (últimos 12 meses).`, data: { series } });
+      // === Itens do pedido
+      if (intent === "produtos_por_pedido") {
+        if (!nunota) return res.json({ reply: "Qual o NUNOTA do pedido? Ex.: itens do pedido #101567" });
+        const rows = await sankhyaSQL(jsession, sqlItensDoPedido(nunota));
+        if (!rows.length) return res.json({ reply: `Não encontrei itens para o pedido #${nunota}.` });
+        const table = {
+          columns: ["Produto", "Qtd pendente", "Un", "Valor", "Prev Entrega"],
+          rows: rows.map(r => [r[0], Number(r[1]), r[2], fmtBRL(r[3]), r[4]])
+        };
+        return res.json({ reply: `Itens do pedido #${nunota}:`, data: { table } });
       }
 
+      // === Séries (simples)
       if (intent === "serie_pedidos_mes") {
         const sql = `
-          SELECT COUNT(DISTINCT CAB.NUNOTA) as VALOR,
-                 TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
+          SELECT COUNT(DISTINCT CAB.NUNOTA) AS QTD, TO_CHAR(TRUNC(CAB.DTNEG,'MM'),'MM/YYYY') AS MES
           FROM TGFCAB CAB
-          JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-          WHERE CAB.TIPMOV = 'O'
-            AND CAB.STATUSNOTA = 'L'
-            AND CAB.DTNEG > TRUNC(SYSDATE - 365)
-            AND PAR.CODPARC = ${codparc}
-          GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
-          ORDER BY TRUNC(CAB.DTNEG, 'MM')
+          WHERE CAB.TIPMOV='C' ${comprador ? `AND NVL(CAB.AD_COMPRADOR,'---')='${comprador}'` : ""}
+            AND CAB.DTNEG > TRUNC(ADD_MONTHS(SYSDATE,-12),'MM')
+          GROUP BY TRUNC(CAB.DTNEG,'MM')
+          ORDER BY TRUNC(CAB.DTNEG,'MM')
         `;
         const rows = await sankhyaSQL(jsession, sql);
         const series = rows.map(r => ({ mes: r[1], valor: Number(r[0]) || 0 }));
-        return res.json({ reply: `Quantidade de pedidos por mês (últimos 12 meses).`, data: { series } });
+        return res.json({ reply: `Pedidos/mês${comprador ? ` — ${comprador}` : ""} (12m):`, data: { series } });
       }
 
-      if (intent === "produtos_por_pedido") {
-        if (!nunota) return res.json({ reply: "Qual o NUNOTA do pedido? Ex.: 'produtos do pedido 123456'." });
+      if (intent === "serie_gastos_mes") {
         const sql = `
-          SELECT ITE.NUNOTA,
-                 PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
-                 ITE.QTDNEG - ITE.QTDENTREGUE AS QTDLIQ,
-                 ITE.VLRTOT,
-                 CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
-                 NVL(TO_CHAR(ITE.AD_DTENTREGA,'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA
-          FROM TGFITE ITE
-          JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
-          LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
-          WHERE ITE.NUNOTA = ${nunota}
-          ORDER BY ITE.VLRTOT DESC FETCH FIRST 10 ROWS ONLY
+          SELECT SUM(ITE.VLRTOT) AS VALOR, TO_CHAR(TRUNC(CAB.DTNEG,'MM'),'MM/YYYY') AS MES
+          FROM TGFCAB CAB JOIN TGFITE ITE ON ITE.NUNOTA = CAB.NUNOTA
+          WHERE CAB.TIPMOV='C' ${comprador ? `AND NVL(CAB.AD_COMPRADOR,'---')='${comprador}'` : ""}
+            AND CAB.DTNEG > TRUNC(ADD_MONTHS(SYSDATE,-12),'MM')
+          GROUP BY TRUNC(CAB.DTNEG,'MM')
+          ORDER BY TRUNC(CAB.DTNEG,'MM')
         `;
         const rows = await sankhyaSQL(jsession, sql);
-        if (!rows.length) return res.json({ reply: `Não encontrei itens para o pedido ${nunota}.` });
-        const table = {
-          columns: ["Produto", "Qtd Liq", "Valor", "Status", "Prev Entrega"],
-          rows: rows.map(r => [r[1], Number(r[2]) || 0, fmtBRL(r[3]), r[4], r[5]])
-        };
-        return res.json({ reply: `Itens do pedido ${nunota}:`, data: { table } });
-      }
-
-      if (intent === "listar_financeiro") {
-        const sql = `
-          SELECT TO_CHAR(FIN.DTVENC,'DD/MM/YYYY') AS VENC,
-                 FIN.VLRDESDOB,
-                 NVL(FIN.VLRBAIXA,0) AS BAIXA,
-                 CASE
-                    WHEN FIN.DTVENC < SYSDATE AND FIN.DHBAIXA IS NULL THEN 'ATRASADO'
-                    WHEN FIN.DTVENC > SYSDATE AND FIN.DHBAIXA IS NULL THEN 'A PAGAR'
-                    WHEN FIN.DHBAIXA IS NOT NULL THEN 'PAGO'
-                 END AS STATUS
-          FROM TGFFIN FIN
-          JOIN TGFPAR PAR ON PAR.CODPARC = FIN.CODPARC
-          WHERE PAR.CODPARC = ${codparc}
-            AND FIN.CODTIPTIT <> 29
-          ORDER BY FIN.DTVENC DESC FETCH FIRST 12 ROWS ONLY
-        `;
-        const rows = await sankhyaSQL(jsession, sql);
-        const table = { columns: ["Vencimento", "Valor", "Baixa", "Status"], rows: rows.map(r => [r[0], fmtBRL(r[1]), fmtBRL(r[2]), r[3]]) };
-        return res.json({ reply: "Últimas parcelas:", data: { table } });
+        const series = rows.map(r => ({ mes: r[1], valor: Number(r[0]) || 0 }));
+        return res.json({ reply: `Gastos/mês${comprador ? ` — ${comprador}` : ""} (12m):`, data: { series } });
       }
     }
 
-    // Intenções que ALTERAM dados: pedem confirmação
-    if (intent === "editar_data_pedido") {
+    // === Alterar previsão (confirmação)
+    if (intent === "editar_previsao_pedido") {
       const n = nunota || "(faltando NUNOTA)";
       const d = dataBR || "(faltando data)";
       return res.json({
-        reply: `Você quer alterar a data de entrega do pedido ${n} para ${d}, confere?`,
+        reply: `Confirma alterar a previsão do pedido #${n} para ${d}?`,
         confirmationRequired: true,
-        action: { type: "editar_pedido", nunota: nunota, novaDataEntrega: dataBR }
-      });
-    }
-    if (intent === "imprimir_pedido") {
-      if (!nunota) return res.json({ reply: "Qual NUNOTA do pedido para imprimir? Ex.: 'imprimir pedido 123456'." });
-      return res.json({
-        reply: `Posso gerar o PDF do pedido ${nunota}. Deseja prosseguir?`,
-        confirmationRequired: true,
-        action: { type: "imprimir_pedido", nunota }
+        action: { type: "editar_previsao_pedido", nunota, novaData: dataBR }
       });
     }
 
-    // Fallback: usa o Gemini para responder genericamente
+    // === Fallback (Gemini opcional)
     const systemPrompt = `
-Você é um assistente do Portal do Fornecedor NX Boats. Responda em pt-BR, de forma objetiva.
-Se a pergunta parecer pedir listagens numéricas ou por NUNOTA, diga como o usuário pode pedir (ex.: "produtos do pedido 123456").
-    `.trim();
+Você é um copiloto de COMPRAS da NX Boats. Responda em pt-BR, objetivo e prático.
+Nunca diga "não tenho acesso". Se faltar dado, peça o que falta (usuário, senha, NUNOTA) ou sugira: /criticos, /necessidades, /atrasados, /itens 101567, /previsao 101234 10/09/2025.
+Foque em: itens críticos, necessidades, pedidos (atrasados/abertos/recebidos), itens do pedido e alteração de previsão.
+`.trim();
+
+    if (!process.env.GOOGLE_API_KEY) {
+      return res.json({ reply: `Posso listar *itens críticos*, *necessidades de compra*, *pedidos atrasados/abertos/recebidos*, *itens do pedido #N* e *alterar previsão do #N*.` });
+    }
 
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction: systemPrompt });
     const geminiHistory = Array.isArray(history)
       ? history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }))
       : [];
     const chat = model.startChat({ history: geminiHistory });
-    const prefix = `Usuário: ${usuario} | CODPARC: ${codparc}\nPergunta: `;
+    const prefix = `Comprador: ${comprador || "(não informado)"}\nPergunta: `;
     const r = await chat.sendMessage(prefix + message);
     const reply = r.response?.text?.() || "Não consegui gerar resposta agora.";
     return res.json({ reply });
+
   } catch (err) {
     console.error("Falha /api/ai/chat:", err?.response?.data || err.message);
     return res.status(500).json({ erro: "Falha na IA", detalhe: err?.response?.data || err.message });
   }
 });
 
-// --- FIM IA NXCopilot ---
+// Confirmar alteração de previsão (usado pelo front)
+app.post("/api/ai/confirmar-previsao", async (req, res) => {
+  try {
+    const { usuario, senha, nunota, novaData } = req.body || {};
+    if (!usuario || !senha || !nunota || !novaData) {
+      return res.status(400).json({ erro: "Parâmetros ausentes (usuario, senha, nunota, novaData)." });
+    }
+    const iso = toISODateBR(novaData);
+    if (!iso) return res.status(400).json({ erro: "Data inválida. Use dd/mm/aaaa." });
 
+    const jsession = await sankhyaLogin(usuario, senha);
+    const sqlUpdate = `UPDATE TGFCAB SET DTPREVENT = TO_DATE('${novaData}','DD/MM/YYYY') WHERE NUNOTA = ${Number(nunota)}`;
+    await sankhyaExecUpdate(jsession, sqlUpdate);
 
+    return res.json({ ok: true, reply: `Previsão do pedido #${nunota} atualizada para ${novaData}.` });
+  } catch (err) {
+    console.error("Falha confirmar-previsao:", err?.response?.data || err.message);
+    return res.status(500).json({ erro: "Falha ao atualizar previsão", detalhe: err?.response?.data || err.message });
+  }
+});
 
+// =====================================================
+// ====== DEMAIS ROTAS (mantidas do seu backend) =======
+// =====================================================
 
-
-//CONSULTA SQL
-
+// Função utilitária para SELECT simples (usada nos gráficos)
 async function consultaSQL(usuario, senha, sql) {
-    // Login
-    const loginResponse = await axios.post(
-        `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-        {
-            serviceName: "MobileLoginSP.login",
-            requestBody: {
-                NOMUSU: { "$": usuario },
-                INTERNO: { "$": senha },
-                KEEPCONNECTED: { "$": "S" }
-            }
-        },
-        { headers: { 'Content-Type': 'application/json' } }
-    );
+  const loginResponse = await axios.post(
+    `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+    {
+      serviceName: "MobileLoginSP.login",
+      requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } }
+    },
+    { headers: { 'Content-Type': 'application/json' } }
+  );
+  const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+  if (!sessionId) throw new Error("Falha no login para consulta SQL");
 
-    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
-    if (!sessionId) throw new Error("Falha no login para consulta SQL");
+  const response = await axios.post(
+    `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+    { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+    { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+  );
 
-    const consulta = {
-        serviceName: "DbExplorerSP.executeQuery",
-        requestBody: {
-            sql,
-            outputType: "json"
-        }
-    };
-
-    const response = await axios.post(
-        `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-        consulta,
-        {
-            headers: {
-                'Content-Type': 'application/json',
-                'Cookie': `JSESSIONID=${sessionId}`
-            }
-        }
-    );
-
-    return response.data.responseBody?.rows.map(row => ({
-        VALOR: parseInt(row[0]),
-        MES: row[1]
-    })) || [];
+  return response.data.responseBody?.rows.map(row => ({
+    VALOR: parseInt(row[0]),
+    MES: row[1]
+  })) || [];
 }
 
-
-// PEDIDOS
+// ------------------ PEDIDOS ------------------
 app.post('/api/pedidos', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: "Credenciais ausentes" });
-    }
+  const { usuario, senha, codparc } = req.body;
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: "Credenciais ausentes" });
+  }
 
-    try {
-        // Login na API Sankhya
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      {
+        serviceName: "MobileLoginSP.login",
+        requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } }
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
 
-        const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+    const sql = `
+      SELECT 
+        CAB.NUNOTA,
+        TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
+        SUM(ITE.QTDNEG - ITE.QTDENTREGUE) AS QTDLIQ,
+        CAB.VLRNOTA,
+        CASE 
+            WHEN SUM(ITE.QTDNEG - ITE.QTDENTREGUE) = 0 THEN 'ENTREGUE'
+            WHEN CAB.DTPREVENT < SYSDATE THEN 'ATRASADO'
+            ELSE 'PENDENTE'
+        END AS STATUS,
+        NVL(TO_CHAR(CAB.DTPREVENT, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA
+      FROM TGFCAB CAB
+      INNER JOIN TGFITE ITE ON CAB.NUNOTA = ITE.NUNOTA
+      LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+      LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE PAR.CODPARC = ${codparc}
+      GROUP BY CAB.NUNOTA, CAB.DTNEG, CAB.VLRNOTA, CAB.DTPREVENT
+      ORDER BY CAB.DTNEG DESC
+    `;
 
-        // Consulta SQL
-        const sql = `
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+    );
+
+    const pedidos = response.data.responseBody?.rows.map(row => ({
+      NUNOTA: row[0],
+      DTNEG: row[1],
+      QTDLIQ: row[2],
+      VLRNOTA: row[3],
+      STATUS: row[4],
+      AD_DTENTREGA: row[5],
+    })) || [];
+
+    res.json(pedidos);
+  } catch (error) {
+    console.error("Erro ao buscar pedidos:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar pedidos" });
+  }
+});
+
+// ------------------ PRODUTOS (TOP 15 pendentes) ------------------
+app.post('/api/produtos', async (req, res) => {
+  const { usuario, senha, codparc } = req.body;
+
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
+  }
+
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      {
+        serviceName: "MobileLoginSP.login",
+        requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } }
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão.");
+
+    const sql = `
+      SELECT *
+      FROM (
         SELECT 
-          CAB.NUNOTA,
-          TO_CHAR(CAB.DTNEG,'DD/MM/YYYY') AS DTNEG,
-          SUM(ITE.QTDNEG - ITE.QTDENTREGUE) AS QTDLIQ,
-          CAB.VLRNOTA,
-          CASE 
-              WHEN SUM(ITE.QTDNEG - ITE.QTDENTREGUE) = 0 THEN 'ENTREGUE'
-              WHEN CAB.DTPREVENT < SYSDATE THEN 'ATRASADO'
-              ELSE 'PENDENTE'
-          END AS STATUS,
-          NVL(TO_CHAR(CAB.DTPREVENT, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA
-        FROM TGFCAB CAB
-        INNER JOIN TGFITE ITE ON CAB.NUNOTA = ITE.NUNOTA
+          ITE.NUNOTA,
+          PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
+          ITE.QTDNEG - ITE.QTDENTREGUE AS QTDLIQ,
+          ITE.VLRTOT,
+          CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
+          NVL(TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
+          'http://sankhya.nxboats.com.br:8180/mge/Produto@IMAGEM@CODPROD='||PRO.CODPROD||'.dbimage' AS IMAGEM
+        FROM TGFITE ITE
+        INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
         LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
         LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-        WHERE PAR.CODPARC = ${codparc}
-        GROUP BY CAB.NUNOTA, CAB.DTNEG, CAB.VLRNOTA, CAB.DTPREVENT
-        ORDER BY CAB.DTNEG DESC
-      `;
+        WHERE PAR.CODPARC = ${codparc} 
+          AND ITE.QTDNEG - ITE.QTDENTREGUE <> 0
+        ORDER BY CAB.DTNEG DESC , ITE.VLRTOT DESC
+      )
+      WHERE ROWNUM <= 15
+    `;
 
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${sessionId}`
-                }
-            }
-        );
+    const produtos = response.data.responseBody?.rows.map(row => ({
+      NUNOTA: row[0],
+      PRODUTO: row[1],
+      QTDLIQ: row[2],
+      VLRTOT: row[3],
+      STATUS: row[4],
+      AD_DTENTREGA: row[5],
+      IMAGEM: row[6]
+    })) || [];
 
-        const pedidos = response.data.responseBody?.rows.map(row => ({
-            NUNOTA: row[0],
-            DTNEG: row[1],
-            QTDLIQ: row[2],
-            VLRNOTA: row[3],
-            STATUS: row[4],
-            AD_DTENTREGA: row[5],
-        })) || [];
-
-        res.json(pedidos);
-    } catch (error) {
-        console.error("Erro ao buscar pedidos:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar pedidos" });
-    }
+    res.json(produtos);
+  } catch (err) {
+    console.error("Erro ao buscar produtos:", err.message);
+    res.status(500).json({ erro: 'Erro ao buscar produtos', detalhes: err.message });
+  }
 });
 
-// PRODUTOS
-app.post('/api/produtos', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
-
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
-    }
-
-    try {
-        // Faz o login com os dados recebidos
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão.");
-
-        // Consulta SQL
-        const sql = `
-        SELECT *
-            FROM (
-                SELECT 
-                    ITE.NUNOTA,
-                    PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
-                    ITE.QTDNEG - ITE.QTDENTREGUE AS QTDLIQ,
-                    ITE.VLRTOT,
-                    CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
-                    NVL(TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
-                    'http://sankhya.nxboats.com.br:8180/mge/Produto@IMAGEM@CODPROD='||PRO.CODPROD||'.dbimage' AS IMAGEM
-                FROM TGFITE ITE
-                INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
-                LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
-                LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-                WHERE PAR.CODPARC = ${codparc} 
-                AND ITE.QTDNEG - ITE.QTDENTREGUE <> 0
-                ORDER BY CAB.DTNEG DESC , ITE.VLRTOT DESC
-            )
-            WHERE ROWNUM <= 15
-      `;
-
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
-
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
-
-        const produtos = response.data.responseBody?.rows.map(row => ({
-            NUNOTA: row[0],
-            PRODUTO: row[1],
-            QTDLIQ: row[2],
-            VLRTOT: row[3],
-            STATUS: row[4],
-            AD_DTENTREGA: row[5],
-            IMAGEM: row[6]
-        })) || [];
-
-        res.json(produtos);
-    } catch (err) {
-        console.error("Erro ao buscar produtos:", err.message);
-        res.status(500).json({ erro: 'Erro ao buscar produtos', detalhes: err.message });
-    }
-});
-
-// NOVA ROTA PARA LISTAR TODOS OS PRODUTOS
+// ------------------ PRODUTOS (todos) ------------------
 app.post('/api/produtos/all', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
+  const { usuario, senha, codparc } = req.body;
 
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
-    }
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
+  }
 
-    try {
-        // Faz o login com os dados recebidos
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      {
+        serviceName: "MobileLoginSP.login",
+        requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } }
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão.");
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão.");
 
-        // Consulta SQL (Todos os produtos)
-        const sql = `
-            SELECT
-                PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
-                SUM(ITE.QTDNEG - ITE.QTDENTREGUE) AS QTDLIQ,
-                SUM(ITE.VLRTOT) AS VALOR_TOTAL,
-                CASE 
-                    WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' 
-                    ELSE 'PARCIAL' 
-                END AS STATUS,
-                COALESCE(TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY'), 'SEM PREV.') AS AD_DTENTREGA,
-                'http://sankhya.nxboats.com.br:8180/mge/Produto@IMAGEM@CODPROD=' || PRO.CODPROD || '.dbimage' AS IMAGEM
-            FROM TGFITE ITE
-            INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
-            LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
-            LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODPARC = ${codparc}
-            AND (ITE.QTDNEG - ITE.QTDENTREGUE) <> 0
-            GROUP BY 
-                PRO.CODPROD, PRO.DESCRPROD,
-                CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END,
-                TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY')
-            ORDER BY 
-                MAX(CAB.DTNEG) DESC,
-                SUM(ITE.VLRTOT) DESC
-        `;
+    const sql = `
+      SELECT
+        PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
+        SUM(ITE.QTDNEG - ITE.QTDENTREGUE) AS QTDLIQ,
+        SUM(ITE.VLRTOT) AS VALOR_TOTAL,
+        CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
+        COALESCE(TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY'), 'SEM PREV.') AS AD_DTENTREGA,
+        'http://sankhya.nxboats.com.br:8180/mge/Produto@IMAGEM@CODPROD=' || PRO.CODPROD || '.dbimage' AS IMAGEM
+      FROM TGFITE ITE
+      INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+      LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+      LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE PAR.CODPARC = ${codparc}
+        AND (ITE.QTDNEG - ITE.QTDENTREGUE) <> 0
+      GROUP BY 
+        PRO.CODPROD, PRO.DESCRPROD,
+        CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END,
+        TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY')
+      ORDER BY 
+        MAX(CAB.DTNEG) DESC,
+        SUM(ITE.VLRTOT) DESC
+    `;
 
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
+    const produtos = response.data.responseBody?.rows.map(row => ({
+      PRODUTO: row[0],
+      QTDLIQ: row[1],
+      VLRTOT: row[2],
+      STATUS: row[3],
+      AD_DTENTREGA: row[4],
+      IMAGEM: row[5]
+    })) || [];
 
-        // O mapeamento aqui precisa corresponder exatamente à ordem das colunas na sua consulta SQL.
-        // Sua consulta tem 6 colunas, então o índice vai de 0 a 5.
-        const produtos = response.data.responseBody?.rows.map(row => ({
-            PRODUTO: row[0],
-            QTDLIQ: row[1],
-            VLRTOT: row[2],
-            STATUS: row[3],
-            AD_DTENTREGA: row[4],
-            IMAGEM: row[5]
-        })) || [];
-
-        res.json(produtos);
-    } catch (err) {
-        console.error("Erro ao buscar todos os produtos:", err.message);
-        res.status(500).json({ erro: 'Erro ao buscar todos os produtos', detalhes: err.message });
-    }
+    res.json(produtos);
+  } catch (err) {
+    console.error("Erro ao buscar todos os produtos:", err.message);
+    res.status(500).json({ erro: 'Erro ao buscar todos os produtos', detalhes: err.message });
+  }
 });
 
-//Card 1
+// ------------------ Cards/KPIs ------------------
 app.get('/api/pedidos-mes', async (req, res) => {
-    const { usuario, senha, codparc } = req.query;
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: "Credenciais ausentes" });
-    }
-
-    try {
-        // Realiza o login
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
-
-        const sql = `
-            SELECT COUNT(CAB.NUNOTA) AS QTD
-            FROM TGFCAB CAB
-            LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODVEND = ${codparc}
-              AND TO_CHAR(DTNEG, 'MM/YYYY') = TO_CHAR(SYSDATE,'MM/YYYY')
-        `;
-
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
-
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${sessionId}`
-                }
-            }
-        );
-
-        const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
-        res.json({ quantidade });
-
-    } catch (error) {
-        console.error("Erro ao buscar pedidos do mês:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar pedidos do mês" });
-    }
+  const { usuario, senha, codparc } = req.query;
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: "Credenciais ausentes" });
+  }
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+    const sql = `
+      SELECT COUNT(CAB.NUNOTA) AS QTD
+      FROM TGFCAB CAB
+      LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE PAR.CODVEND = ${codparc}
+        AND TO_CHAR(DTNEG, 'MM/YYYY') = TO_CHAR(SYSDATE,'MM/YYYY')
+    `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+    );
+    const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
+    res.json({ quantidade });
+  } catch (error) {
+    console.error("Erro ao buscar pedidos do mês:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar pedidos do mês" });
+  }
 });
-//Card 2
+
 app.get('/api/pedidos-atrasados', async (req, res) => {
-    const { usuario, senha, codparc } = req.query;
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: "Credenciais ausentes" });
-    }
-
-    try {
-        // Realiza o login
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
-
-        const sql = `
-             
-            SELECT 
-                COUNT(DISTINCT CAB.NUNOTA) AS QTD
-            FROM TGFCAB CAB
-            LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODVEND = ${codparc} 
-            AND CAB.PENDENTE = 'S'
-            AND CAB.TIPMOV = 'O'
-            AND (CAB.DTPREVENT < SYSDATE OR CAB.DTPREVENT IS NULL)
-        `;
-
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
-
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${sessionId}`
-                }
-            }
-        );
-
-        const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
-        res.json({ quantidade });
-
-    } catch (error) {
-        console.error("Erro ao buscar pedidos do atrasados:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar pedidos do atrasdos" });
-    }
+  const { usuario, senha, codparc } = req.query;
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: "Credenciais ausentes" });
+  }
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+    const sql = `
+      SELECT COUNT(DISTINCT CAB.NUNOTA) AS QTD
+      FROM TGFCAB CAB
+      LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE PAR.CODVEND = ${codparc} 
+        AND CAB.PENDENTE = 'S'
+        AND CAB.TIPMOV = 'O'
+        AND (CAB.DTPREVENT < SYSDATE OR CAB.DTPREVENT IS NULL)
+    `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+    );
+    const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
+    res.json({ quantidade });
+  } catch (error) {
+    console.error("Erro ao buscar pedidos do atrasados:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar pedidos do atrasados" });
+  }
 });
-//Card 3
+
 app.get('/api/pedidos-prazo', async (req, res) => {
-    const { usuario, senha, codparc } = req.query;
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: "Credenciais ausentes" });
-    }
-
-    try {
-        // Realiza o login
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
-
-        const sql = `
-            SELECT 
-                COUNT(DISTINCT CAB.NUNOTA) AS QTD
-            FROM TGFCAB CAB
-            LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODVEND = ${codparc} 
-            AND (CAB.DTPREVENT >= SYSDATE)
-        `;
-
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
-
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${sessionId}`
-                }
-            }
-        );
-
-        const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
-        res.json({ quantidade });
-
-    } catch (error) {
-        console.error("Erro ao buscar pedidos no prazo:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar pedidos no prazo" });
-    }
+  const { usuario, senha, codparc } = req.query;
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: "Credenciais ausentes" });
+  }
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+    const sql = `
+      SELECT COUNT(DISTINCT CAB.NUNOTA) AS QTD
+      FROM TGFCAB CAB
+      LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE PAR.CODVEND = ${codparc} 
+        AND (CAB.DTPREVENT >= SYSDATE)
+    `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+    );
+    const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
+    res.json({ quantidade });
+  } catch (error) {
+    console.error("Erro ao buscar pedidos no prazo:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar pedidos no prazo" });
+  }
 });
-// card 4
+
 app.get('/api/pedidos-vencer', async (req, res) => {
-    const { usuario, senha, codparc } = req.query;
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: "Credenciais ausentes" });
-    }
-
-    try {
-        // Realiza o login
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
-
-        const sql = `
-            SELECT 
-                COUNT(DISTINCT CAB.NUNOTA) AS QTD
-            FROM TGFCAB CAB
-            LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODVEND = ${codparc} 
-            AND (CAB.DTPREVENT >= SYSDATE-10)
-        `;
-
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
-
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${sessionId}`
-                }
-            }
-        );
-
-        const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
-        res.json({ quantidade });
-
-    } catch (error) {
-        console.error("Erro ao buscar pedidos a vencer:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar pedidos a vencer" });
-    }
+  const { usuario, senha, codparc } = req.query;
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: "Credenciais ausentes" });
+  }
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+    const sql = `
+      SELECT COUNT(DISTINCT CAB.NUNOTA) AS QTD
+      FROM TGFCAB CAB
+      LEFT JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE PAR.CODVEND = ${codparc} 
+        AND (CAB.DTPREVENT >= SYSDATE-10)
+    `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+    );
+    const quantidade = response.data.responseBody?.rows?.[0]?.[0] || 0;
+    res.json({ quantidade });
+  } catch (error) {
+    console.error("Erro ao buscar pedidos a vencer:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar pedidos a vencer" });
+  }
 });
-// grafico 1
+
+// ------------------ Gráficos ------------------
 app.post('/api/grafico-vendas', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: "Credenciais ausentes" });
-    }
-
-    try {
-        // Login na API Sankhya
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
-
-        // Consulta SQL
-        const sql = `
-        SELECT 
-          SUM(CAB.VLRNOTA) as VALOR,
-          TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
-        FROM TGFCAB CAB
-        INNER JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-        WHERE CAB.TIPMOV = 'O'
-          AND CAB.STATUSNOTA = 'L'
-          AND CAB.DTNEG > TRUNC(SYSDATE - 365)
-          AND PAR.CODVEND = ${codparc}
-        GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
-        ORDER BY TRUNC(CAB.DTNEG, 'MM')
-      `;
-
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
-
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${sessionId}`
-                }
-            }
-        );
-
-        const dados = response.data.responseBody?.rows.map(row => ({
-            valor: parseFloat(row[0]),
-            mes: row[1]
-        })) || [];
-
-        res.json(dados);
-    } catch (error) {
-        console.error("Erro ao buscar dados do gráfico:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar dados do gráfico" });
-    }
+  const { usuario, senha, codparc } = req.body;
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: "Credenciais ausentes" });
+  }
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const sessionId = loginResponse.data.responseBody?.jsessionid?.["$"];
+    const sql = `
+      SELECT 
+        SUM(CAB.VLRNOTA) as VALOR,
+        TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
+      FROM TGFCAB CAB
+      INNER JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE CAB.TIPMOV = 'O'
+        AND CAB.STATUSNOTA = 'L'
+        AND CAB.DTNEG > TRUNC(SYSDATE - 365)
+        AND PAR.CODVEND = ${codparc}
+      GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
+      ORDER BY TRUNC(CAB.DTNEG, 'MM')
+    `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${sessionId}` } }
+    );
+    const dados = response.data.responseBody?.rows.map(row => ({ valor: parseFloat(row[0]), mes: row[1] })) || [];
+    res.json(dados);
+  } catch (error) {
+    console.error("Erro ao buscar dados do gráfico:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar dados do gráfico" });
+  }
 });
-// GREFICO 2
+
 app.get("/api/pedidos-por-mes", async (req, res) => {
-    const { usuario, senha, codparc } = req.query;
-
-    try {
-        const sql = `
-        SELECT 
-          COUNT(DISTINCT CAB.NUNOTA) as VALOR,
-          TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
-        FROM TGFCAB CAB
-        INNER JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-        WHERE CAB.TIPMOV = 'O'
-          AND CAB.STATUSNOTA = 'L'
-          AND CAB.DTNEG > TRUNC(SYSDATE - 365)
-          AND PAR.CODVEND = ${codparc}
-        GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
-        ORDER BY TRUNC(CAB.DTNEG, 'MM')
-      `;
-
-        const dados = await consultaSQL(usuario, senha, sql);
-        const resultados = dados.map(row => ({
-            mes: row.MES,
-            valor: row.VALOR
-        }));
-
-        res.json(resultados);
-    } catch (err) {
-        console.error("Erro ao buscar pedidos por mês:", err);
-        res.status(500).json({ erro: "Erro ao buscar dados" });
-    }
+  const { usuario, senha, codparc } = req.query;
+  try {
+    const sql = `
+      SELECT 
+        COUNT(DISTINCT CAB.NUNOTA) as VALOR,
+        TO_CHAR(TRUNC(CAB.DTNEG, 'MM'), 'MM/YYYY') AS MES
+      FROM TGFCAB CAB
+      INNER JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE CAB.TIPMOV = 'O'
+        AND CAB.STATUSNOTA = 'L'
+        AND CAB.DTNEG > TRUNC(SYSDATE - 365)
+        AND PAR.CODVEND = ${codparc}
+      GROUP BY TRUNC(CAB.DTNEG, 'MM'), PAR.CODPARC
+      ORDER BY TRUNC(CAB.DTNEG, 'MM')
+    `;
+    const dados = await consultaSQL(usuario, senha, sql);
+    const resultados = dados.map(row => ({ mes: row.MES, valor: row.VALOR }));
+    res.json(resultados);
+  } catch (err) {
+    console.error("Erro ao buscar pedidos por mês:", err);
+    res.status(500).json({ erro: "Erro ao buscar dados" });
+  }
 });
-// pedidos por nunota
+
+// ------------------ Itens por pedido ------------------
 app.get('/api/produtos-por-pedido', async (req, res) => {
-    const { usuario, senha, nunota } = req.query;
+  const { usuario, senha, nunota } = req.query;
 
-    if (!usuario || !senha || !nunota) {
-        return res.status(400).json({ erro: 'Parâmetros ausentes.' });
-    }
+  if (!usuario || !senha || !nunota) {
+    return res.status(400).json({ erro: 'Parâmetros ausentes.' });
+  }
 
-    try {
-        // Faz login
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Falha no login");
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Falha no login");
+    const sql = `
+      SELECT 
+        ITE.NUNOTA,
+        PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
+        ITE.QTDNEG - ITE.QTDENTREGUE AS QTDLIQ,
+        ITE.VLRTOT,
+        CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
+        NVL(TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
+        'http://sankhya.nxboats.com.br:8180/mge/Produto@IMAGEM@CODPROD='||PRO.CODPROD||'.dbimage' AS IMAGEM
+      FROM TGFITE ITE
+      INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+      LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+      WHERE ITE.NUNOTA = ${Number(nunota)}
+    `;
 
-        const sql = `
-            SELECT 
-                ITE.NUNOTA,
-                PRO.CODPROD || ' - ' || PRO.DESCRPROD AS PRODUTO,
-                ITE.QTDNEG - ITE.QTDENTREGUE AS QTDLIQ,
-                ITE.VLRTOT,
-                CASE WHEN ITE.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
-                NVL(TO_CHAR(ITE.AD_DTENTREGA, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
-                'http://sankhya.nxboats.com.br:8180/mge/Produto@IMAGEM@CODPROD='||PRO.CODPROD||'.dbimage' AS IMAGEM
-            FROM TGFITE ITE
-            INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
-            LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
-            WHERE ITE.NUNOTA = ${nunota}
-        `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const produtos = response.data.responseBody?.rows.map(row => ({
+      NUNOTA: row[0],
+      PRODUTO: row[1],
+      QTDLIQ: row[2],
+      VLRTOT: row[3],
+      STATUS: row[4],
+      AD_DTENTREGA: row[5],
+      IMAGEM: row[6]
+    })) || [];
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
-
-        const produtos = response.data.responseBody?.rows.map(row => ({
-            NUNOTA: row[0],
-            PRODUTO: row[1],
-            QTDLIQ: row[2],
-            VLRTOT: row[3],
-            STATUS: row[4],
-            AD_DTENTREGA: row[5],
-            IMAGEM: row[6]
-        })) || [];
-
-        res.json(produtos);
-    } catch (error) {
-        console.error("Erro ao buscar produtos do pedido:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar produtos do pedido" });
-    }
+    res.json(produtos);
+  } catch (error) {
+    console.error("Erro ao buscar produtos do pedido:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar produtos do pedido" });
+  }
 });
 
-
-// pedidos por nunota
+// ------------------ Pedidos por comprador ------------------
 app.get('/api/pedido-comprador', async (req, res) => {
-    const { usuario, senha, comprador } = req.query;
+  const { usuario, senha, comprador } = req.query;
 
-    if (!usuario || !senha || !comprador) {
-        return res.status(400).json({ erro: 'Parâmetros ausentes.' });
-    }
+  if (!usuario || !senha || !comprador) {
+    return res.status(400).json({ erro: 'Parâmetros ausentes.' });
+  }
 
-    try {
-        // Faz login
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Falha no login");
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Falha no login");
+    const sql = `
+      SELECT 
+        CAB.NUNOTA,
+        PAR.CODPARC || ' - ' || PAR.NOMEPARC AS NOMEFOR,
+        CAB.VLRNOTA AS VALOR,
+        CASE WHEN CAB.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
+        NVL(TO_CHAR(CAB.DTPREVENT, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
+        CAB.DTPREVENT - SYSDATE AS DIASATRASO
+      FROM TGFITE ITE
+      INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
+      LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
+      JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
+      WHERE NVL(CAB.AD_COMPRADOR,'---') = '${comprador}'
+        AND CAB.TIPMOV = 'C'
+        AND CAB.PENDENTE = 'S'
+    `;
 
-        const sql = `
-           SELECT 
-                CAB.NUNOTA,
-                PAR.CODPARC || ' - ' || PAR.NOMEPARC AS NOMEFOR,
-                CAB.VLRNOTA AS VALOR,
-                CASE WHEN CAB.PENDENTE = 'S' THEN 'PENDENTE' ELSE 'PARCIAL' END AS STATUS,
-                NVL(TO_CHAR(CAB.DTPREVENT, 'DD/MM/YYYY'),'SEM PREV.') AS AD_DTENTREGA,
-                CAB.DTPREVENT - SYSDATE AS DIASATRASO
-            FROM TGFITE ITE
-            INNER JOIN TGFCAB CAB ON CAB.NUNOTA = ITE.NUNOTA
-            LEFT JOIN TGFPRO PRO ON PRO.CODPROD = ITE.CODPROD
-            JOIN TGFPAR PAR ON PAR.CODPARC = CAB.CODPARC
-            WHERE PAR.CODVEND = ${comprador}
-            AND CAB.TIPMOV = 'C'
-            AND CAB.PENDENTE = 'S'
-        `;
-//todo
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
+    const produtos = response.data.responseBody?.rows.map(row => ({
+      NUNOTA: row[0],
+      FORNECEDOR: row[1],
+      VALOR: row[2],
+      STATUS: row[3],
+      AD_DTENTREGA: row[4],
+      DIASATRASO: row[5]
+    })) || [];
 
-        const produtos = response.data.responseBody?.rows.map(row => ({
-            NUNOTA: row[0],
-            FORNECEDOR: row[1],
-            VALOR: row[2],
-            STATUS: row[3],
-            AD_DTENTREGA: row[4],
-            DIASATRASO: row[5]
-        })) || [];
-
-        res.json(produtos);
-    } catch (error) {
-        console.error("Erro ao buscar produtos do pedido:", error.message);
-        res.status(500).json({ erro: "Erro ao buscar produtos do pedido" });
-    }
+    res.json(produtos);
+  } catch (error) {
+    console.error("Erro ao buscar produtos do pedido:", error.message);
+    res.status(500).json({ erro: "Erro ao buscar produtos do pedido" });
+  }
 });
 
-
+// ------------------ Financeiro ------------------
 app.post('/api/financeiro', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
+  const { usuario, senha, codparc } = req.body;
 
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
-    }
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
+  }
 
-    try {
-        // LOGIN
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão.");
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão.");
+    const sql = `
+      SELECT
+        FIN.NUMNOTA,
+        FIN.NUFIN,
+        TO_CHAR(FIN.DTNEG, 'DD/MM/YYYY') AS DTNEG,
+        TO_CHAR(FIN.DTVENC, 'DD/MM/YYYY') AS DTVENC,
+        TO_CHAR(FIN.DHBAIXA, 'DD/MM/YYYY') AS DHBAIXA,
+        FIN.VLRDESDOB,
+        NVL(FIN.VLRBAIXA, 0) AS VLRBAIXA,
+        FIN.CODTIPTIT || ' - ' || NVL(TIT.DESCRTIPTIT, 'SEM TIPO') AS TIPTITLO,
+        CASE
+          WHEN FIN.DTVENC < SYSDATE AND FIN.DHBAIXA IS NULL THEN 'ATRASADO'
+          WHEN FIN.DTVENC > SYSDATE AND FIN.DHBAIXA IS NULL THEN 'A PAGAR'
+          WHEN FIN.DHBAIXA IS NOT NULL THEN 'PAGO'
+        END AS STATUS
+      FROM TGFFIN FIN
+      INNER JOIN TGFPAR PAR ON PAR.CODPARC = FIN.CODPARC
+      LEFT JOIN TGFTIT TIT ON TIT.CODTIPTIT = FIN.CODTIPTIT
+      WHERE PAR.CODVEND = ${codparc}
+        AND FIN.CODTIPTIT <> 29
+      ORDER BY FIN.DTVENC DESC
+    `;
 
-        // CONSULTA SQL
-        const sql = `
-            SELECT
-                FIN.NUMNOTA,
-                FIN.NUFIN,
-                TO_CHAR(FIN.DTNEG, 'DD/MM/YYYY') AS DTNEG,
-                TO_CHAR(FIN.DTVENC, 'DD/MM/YYYY') AS DTVENC,
-                TO_CHAR(FIN.DHBAIXA, 'DD/MM/YYYY') AS DHBAIXA,
-                FIN.VLRDESDOB,
-                NVL(FIN.VLRBAIXA, 0) AS VLRBAIXA,
-                FIN.CODTIPTIT || ' - ' || NVL(TIT.DESCRTIPTIT, 'SEM TIPO') AS TIPTITLO,
-                CASE
-                    WHEN FIN.DTVENC < SYSDATE AND FIN.DHBAIXA IS NULL THEN 'ATRASADO'
-                    WHEN FIN.DTVENC > SYSDATE AND FIN.DHBAIXA IS NULL THEN 'A PAGAR'
-                    WHEN FIN.DHBAIXA IS NOT NULL THEN 'PAGO'
-                END AS STATUS
-            FROM TGFFIN FIN
-            INNER JOIN TGFPAR PAR ON PAR.CODPARC = FIN.CODPARC
-            LEFT JOIN TGFTIT TIT ON TIT.CODTIPTIT = FIN.CODTIPTIT
-            WHERE PAR.CODVEND = ${codparc}
-            AND FIN.CODTIPTIT <> 29
-            ORDER BY FIN.DTVENC DESC
-        `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const parcelas = response.data.responseBody?.rows.map(row => ({
+      NUMNOTA: row[0],
+      NUFIN: row[1],
+      DTNEG: row[2],
+      DTVENC: row[3],
+      DHBAIXA: row[4],
+      VLRDESDOB: parseFloat(row[5] || 0),
+      VLRBAIXA: parseFloat(row[6] || 0),
+      TIPTITLO: row[7],
+      STATUS: row[8]
+    })) || [];
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
-
-        const parcelas = response.data.responseBody?.rows.map(row => ({
-            NUMNOTA: row[0],
-            NUFIN: row[1],
-            DTNEG: row[2],
-            DTVENC: row[3],
-            DHBAIXA: row[4],
-            VLRDESDOB: parseFloat(row[5] || 0),
-            VLRBAIXA: parseFloat(row[6] || 0),
-            TIPTITLO: row[7],
-            STATUS: row[8]
-        })) || [];
-
-        res.json(parcelas);
-    } catch (err) {
-        console.error("Erro ao buscar financeiro:", err.message);
-        res.status(500).json({ erro: 'Erro ao buscar financeiro', detalhes: err.message });
-    }
+    res.json(parcelas);
+  } catch (err) {
+    console.error("Erro ao buscar financeiro:", err.message);
+    res.status(500).json({ erro: 'Erro ao buscar financeiro', detalhes: err.message });
+  }
 });
 
+// ------------------ Editar pedido (DatasetSP.save) ------------------
 app.post('/api/editar-pedido', async (req, res) => {
-    const { usuario, senha, nunota, novaDataEntrega, novaObs } = req.body;
-    console.log("➡️ Dados recebidos do front:", req.body);
+  const { usuario, senha, nunota, novaDataEntrega, novaObs } = req.body;
+  if (!usuario || !senha || !nunota || !novaDataEntrega) {
+    return res.status(400).json({ erro: "Campos obrigatórios ausentes: usuario, senha, nunota, novaDataEntrega" });
+  }
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão.");
 
-    if (!usuario || !senha || !nunota || !novaDataEntrega) {
-        return res.status(400).json({ erro: "Campos obrigatórios ausentes: usuario, senha, nunota, novaDataEntrega" });
-    }
+    const [ano, mes, dia] = novaDataEntrega.split("-");
+    const dataFormatada = `${dia}/${mes}/${ano}`;
 
-    try {
-        // Login direto via MobileLoginSP.login para obter JSESSIONID
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+    const payload = {
+      serviceName: "DatasetSP.save",
+      requestBody: {
+        entityName: "CabecalhoNota",
+        fields: ["DTPREVENT", "AD_OBSFORNDT"],
+        records: [
+          { pk: { NUNOTA: nunota }, values: { "0": dataFormatada, "1": novaObs || "" } }
+        ]
+      }
+    };
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão.");
+    const editarResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DatasetSP.save&outputType=json`,
+      payload,
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        // Ajustar formato da data para DD/MM/YYYY se necessário
-        const [ano, mes, dia] = novaDataEntrega.split("-");
-        const dataFormatada = `${dia}/${mes}/${ano}`;
-
-        const payload = {
-            serviceName: "DatasetSP.save",
-            requestBody: {
-                entityName: "CabecalhoNota",
-                fields: ["DTPREVENT", "AD_OBSFORNDT"],
-                records: [
-                    {
-                        pk: { NUNOTA: nunota },
-                        values: {
-                            "0": dataFormatada,
-                            "1": novaObs || ""
-                        }
-                    }
-                ]
-            }
-        };
-
-        const editarResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DatasetSP.save&outputType=json`,
-            payload,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
-
-        res.status(200).json({ sucesso: true, dados: editarResponse.data });
-    } catch (error) {
-        console.error("Erro ao editar pedido:", JSON.stringify(error?.response?.data || error.message, null, 2));
-        res.status(500).json({ erro: "Erro ao editar pedido", detalhes: error?.response?.data || error.message });
-    }
+    res.status(200).json({ sucesso: true, dados: editarResponse.data });
+  } catch (error) {
+    console.error("Erro ao editar pedido:", JSON.stringify(error?.response?.data || error.message, null, 2));
+    res.status(500).json({ erro: "Erro ao editar pedido", detalhes: error?.response?.data || error.message });
+  }
 });
 
+// ------------------ Imprimir pedido (PDF) ------------------
 app.post('/api/imprimir-pedido', async (req, res) => {
-    const { usuario, senha, nunota } = req.body;
+  const { usuario, senha, nunota } = req.body;
 
-    try {
-        // LOGIN
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão");
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão");
-
-        // GERA RELATÓRIO
-        const gerarRelatorioPayload = {
-            serviceName: "VisualizadorRelatorios.visualizarRelatorio",
-            requestBody: {
-                relatorio: {
-                    nuRfe: "1", // ID do relatório
-                    isApp: "N",
-                    nuApp: 1,
-                    parametros: {
-                        parametro: [
-                            {
-                                classe: "java.math.BigDecimal",
-                                nome: "NUNOTA",
-                                valor: nunota
-                            }
-                        ]
-                    }
-                }
-            }
-        };
-
-        const gerarResp = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=VisualizadorRelatorios.visualizarRelatorio&outputType=json`,
-            gerarRelatorioPayload,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
-
-        const chaveArquivo = gerarResp.data?.responseBody?.chave?.valor;
-
-        if (!chaveArquivo) {
-            console.log("🛑 Falha ao obter chave do arquivo.");
-            return res.status(500).json({ erro: "Falha ao obter chave do arquivo." });
+    const gerarRelatorioPayload = {
+      serviceName: "VisualizadorRelatorios.visualizarRelatorio",
+      requestBody: {
+        relatorio: {
+          nuRfe: "1", // ajuste para o RFE correto
+          isApp: "N",
+          nuApp: 1,
+          parametros: {
+            parametro: [{ classe: "java.math.BigDecimal", nome: "NUNOTA", valor: nunota }]
+          }
         }
+      }
+    };
 
-        // DOWNLOAD
-        const downloadResp = await axios.get(
-            `${SANKHYA_URL}/mge/visualizadorArquivos.mge?hidemail=S&download=S&chaveArquivo=${chaveArquivo}`,
-            {
-                headers: {
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                },
-                responseType: 'arraybuffer'
-            }
-        );
+    const gerarResp = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=VisualizadorRelatorios.visualizarRelatorio&outputType=json`,
+      gerarRelatorioPayload,
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        // ENVIA BINÁRIO
-        res.setHeader('Content-Type', 'application/pdf');
-        res.send(downloadResp.data);
+    const chaveArquivo = gerarResp.data?.responseBody?.chave?.valor;
+    if (!chaveArquivo) return res.status(500).json({ erro: "Falha ao obter chave do arquivo." });
 
-    } catch (error) {
-        console.error("❌ Erro ao gerar ou baixar relatório:", error?.response?.data || error.message);
-        res.status(500).json({ erro: "Erro ao gerar ou baixar o relatório" });
-    }
+    const downloadResp = await axios.get(
+      `${SANKHYA_URL}/mge/visualizadorArquivos.mge?hidemail=S&download=S&chaveArquivo=${chaveArquivo}`,
+      { headers: { 'Cookie': `JSESSIONID=${jsessionid}` }, responseType: 'arraybuffer' }
+    );
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.send(downloadResp.data);
+  } catch (error) {
+    console.error("Erro ao gerar/baixar relatório:", error?.response?.data || error.message);
+    res.status(500).json({ erro: "Erro ao gerar/baixar relatório" });
+  }
 });
 
-// INFORMAÇÕES DO FORNECEDOR
+// ------------------ Dados da conta ------------------
 app.post('/api/conta', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
+  const { usuario, senha, codparc } = req.body;
 
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
-    }
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
+  }
 
-    try {
-        // LOGIN
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão.");
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão.");
+    const sql = `
+      SELECT
+        PAR.NOMEPARC,
+        PAR.TIPPESSOA,
+        PAR.RAZAOSOCIAL,
+        PAR.TELEFONE,
+        PAR.CGC_CPF,
+        ENDR.NOMEEND,
+        BAI.NOMEBAI,
+        CID.NOMECID,
+        UFS.UF,
+        PAR.CEP
+      FROM TGFPAR PAR
+      LEFT JOIN TSIEND ENDR ON ENDR.CODEND = PAR.CODEND
+      LEFT JOIN TSIBAI BAI ON BAI.CODBAI = PAR.CODBAI
+      LEFT JOIN TSICID CID ON CID.CODCID = PAR.CODCID
+      LEFT JOIN TSIUFS UFS ON UFS.CODUF = PAR.AD_CODUFVENDA
+      WHERE PAR.CODVEND = ${codparc}
+    `;
 
-        // SQL
-        const sql = `
-            SELECT
-                PAR.NOMEPARC,
-                PAR.TIPPESSOA,
-                PAR.RAZAOSOCIAL,
-                PAR.TELEFONE,
-                PAR.CGC_CPF,
-                ENDR.NOMEEND,
-                BAI.NOMEBAI,
-                CID.NOMECID,
-                UFS.UF,
-                PAR.CEP
-            FROM
-                TGFPAR PAR
-                LEFT JOIN TSIEND ENDR ON ENDR.CODEND = PAR.CODEND
-                LEFT JOIN TSIBAI BAI ON BAI.CODBAI = PAR.CODBAI
-                LEFT JOIN TSICID CID ON CID.CODCID = PAR.CODCID
-                LEFT JOIN TSIUFS UFS ON UFS.CODUF = PAR.AD_CODUFVENDA
-            WHERE PAR.CODVEND = ${codparc}
-        `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const row = response.data.responseBody?.rows?.[0];
+    if (!row) return res.status(404).json({ erro: "Parceiro não encontrado." });
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
+    const dados = {
+      NOMEPARC: row[0],
+      TIPPESSOA: row[1],
+      RAZAOSOCIAL: row[2],
+      TELEFONE: row[3],
+      CGC_CPF: row[4],
+      NOMEEND: row[5],
+      NOMEBAI: row[6],
+      NOMECID: row[7],
+      UF: row[8],
+      CEP: row[9]
+    };
 
-        const row = response.data.responseBody?.rows?.[0];
-        if (!row) return res.status(404).json({ erro: "Parceiro não encontrado." });
-
-        const dados = {
-            NOMEPARC: row[0],
-            TIPPESSOA: row[1],
-            RAZAOSOCIAL: row[2],
-            TELEFONE: row[3],
-            CGC_CPF: row[4],
-            NOMEEND: row[5],
-            NOMEBAI: row[6],
-            NOMECID: row[7],
-            UF: row[8],
-            CEP: row[9]
-        };
-
-        res.json(dados);
-    } catch (err) {
-        console.error("Erro ao buscar dados da conta:", err.message);
-        res.status(500).json({ erro: 'Erro ao buscar dados da conta', detalhes: err.message });
-    }
+    res.json(dados);
+  } catch (err) {
+    console.error("Erro ao buscar dados da conta:", err.message);
+    res.status(500).json({ erro: 'Erro ao buscar dados da conta', detalhes: err.message });
+  }
 });
 
+// ------------------ Contatos ------------------
 app.post('/api/contatos', async (req, res) => {
-    const { usuario, senha, codparc } = req.body;
+  const { usuario, senha, codparc } = req.body;
 
-    if (!usuario || !senha || !codparc) {
-        return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
-    }
+  if (!usuario || !senha || !codparc) {
+    return res.status(400).json({ erro: 'Credenciais ausentes. Faça login novamente.' });
+  }
 
-    try {
-        // LOGIN
-        const loginResponse = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
-            {
-                serviceName: "MobileLoginSP.login",
-                requestBody: {
-                    NOMUSU: { "$": usuario },
-                    INTERNO: { "$": senha },
-                    KEEPCONNECTED: { "$": "S" }
-                }
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
+  try {
+    const loginResponse = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=MobileLoginSP.login&outputType=json`,
+      { serviceName: "MobileLoginSP.login", requestBody: { NOMUSU: { "$": usuario }, INTERNO: { "$": senha }, KEEPCONNECTED: { "$": "S" } } },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
+    if (!jsessionid) throw new Error("Erro ao obter sessão.");
 
-        const jsessionid = loginResponse.data.responseBody?.jsessionid?.["$"];
-        if (!jsessionid) throw new Error("Erro ao obter sessão.");
+    const sql = `
+      SELECT CTT.NOMECONTATO, CTT.CELULAR, CTT.EMAIL
+      FROM TGFPAR PAR
+      LEFT JOIN TGFCTT CTT ON (CTT.CODPARC = PAR.CODPARC)
+      WHERE PAR.CODVEND = ${codparc}
+        AND NVL(CTT.NOMECONTATO, ' ') <> ' '
+        AND NVL(CTT.EMAIL, ' ') <> ' '
+    `;
 
-        // SQL atualizado
-        const sql = `
-            SELECT
-                CTT.NOMECONTATO,
-                CTT.CELULAR,
-                CTT.EMAIL
-            FROM
-                TGFPAR PAR
-                LEFT JOIN TGFCTT CTT ON (CTT.CODPARC = PAR.CODPARC)
-            WHERE PAR.CODVEND = ${codparc}
-              AND NVL(CTT.NOMECONTATO, ' ') <> ' '
-              AND NVL(CTT.EMAIL, ' ') <> ' '
-        `;
+    const response = await axios.post(
+      `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
+      { serviceName: "DbExplorerSP.executeQuery", requestBody: { sql, outputType: "json" } },
+      { headers: { 'Content-Type': 'application/json', 'Cookie': `JSESSIONID=${jsessionid}` } }
+    );
 
-        const consulta = {
-            serviceName: "DbExplorerSP.executeQuery",
-            requestBody: {
-                sql,
-                outputType: "json"
-            }
-        };
+    const contatos = response.data.responseBody?.rows.map(row => ({
+      nome: row[0],
+      telefone: row[1],
+      email: row[2]
+    })) || [];
 
-        const response = await axios.post(
-            `${SANKHYA_URL}/mge/service.sbr?serviceName=DbExplorerSP.executeQuery&outputType=json`,
-            consulta,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `JSESSIONID=${jsessionid}`
-                }
-            }
-        );
-
-        const contatos = response.data.responseBody?.rows.map(row => ({
-            nome: row[0],
-            telefone: row[1],
-            email: row[2]
-        })) || [];
-
-        res.json(contatos);
-    } catch (err) {
-        console.error("Erro ao buscar contatos:", err.message);
-        res.status(500).json({ erro: 'Erro ao buscar contatos', detalhes: err.message });
-    }
+    res.json(contatos);
+  } catch (err) {
+    console.error("Erro ao buscar contatos:", err.message);
+    res.status(500).json({ erro: 'Erro ao buscar contatos', detalhes: err.message });
+  }
 });
 
-// Redireciona '/' para a página de login
+// ------------------ Root ------------------
 app.get('/', (req, res) => {
-    res.redirect('/pages/login.html');
+  res.redirect('/pages/login.html');
 });
 
+// ------------------ Start ------------------
 app.listen(3000, '0.0.0.0', () => console.log("Servidor rodando em http://localhost:3000"));
-
